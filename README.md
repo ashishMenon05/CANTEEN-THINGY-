@@ -30,6 +30,16 @@ The application provides four dedicated interfaces accessible from the top navig
 
 ---
 
+## Application Preview
+
+### Student Pre-Ordering Catalog Grid
+![Canteen home page screenshot](./public/screenshots/home_page.png)
+
+### Category Filtering (Breakfast Selected)
+![Breakfast filtered view](./public/screenshots/breakfast_filtered.png)
+
+---
+
 ## Foolproof Installation & Running Guide
 
 Follow these exact steps to run the application on your computer:
