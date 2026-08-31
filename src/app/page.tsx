@@ -6,6 +6,7 @@ import { StudentView } from "@/components/StudentView";
 import { StaffView } from "@/components/StaffView";
 import { MentorLabView } from "@/components/MentorLabView";
 import { QrReceiptModal, SavedReceipt } from "@/components/QrReceiptModal";
+import { Footer } from "@/components/Footer";
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<"student" | "staff" | "mentor">("student");
@@ -112,31 +113,7 @@ export default function HomePage() {
       )}
 
       {/* Bottom Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-900/60 py-6 text-xs text-slate-400">
-        <div className="mx-auto flex max-w-7xl flex-col sm:flex-row items-center justify-between gap-4 px-4 sm:px-6 text-center sm:text-left">
-          <div>
-            <p className="font-semibold text-white">Q-Pass Canteen Pickup System</p>
-            <p className="text-[11px] text-slate-500">
-              Offline-First Zero-Login Architecture • Powered by Next.js, PostgreSQL & Drizzle ORM
-            </p>
-          </div>
-          <div className="flex items-center gap-4 text-xs">
-            <button
-              onClick={() => setActiveTab("mentor")}
-              className="text-amber-400 hover:text-amber-300 font-medium"
-            >
-              Mentor Architecture Console
-            </button>
-            <span className="text-slate-700">•</span>
-            <button
-              onClick={() => setActiveTab("staff")}
-              className="text-slate-300 hover:text-white font-medium"
-            >
-              Staff Terminal (PIN: 1234)
-            </button>
-          </div>
-        </div>
-      </footer>
+      <Footer setActiveTab={setActiveTab} />
     </div>
   );
 }
