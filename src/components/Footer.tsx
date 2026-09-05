@@ -22,7 +22,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="mt-16 border-t border-slate-800/80 bg-slate-950/90 text-slate-400">
+    <footer className="footer-band mt-16 border-t text-slate-400">
       {/* Main Footer Container */}
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
@@ -72,7 +72,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
                   className="flex items-center gap-2 text-slate-400 transition hover:text-orange-400"
                 >
                   <QrCode className="h-3.5 w-3.5 text-orange-500" />
-                  <span>Staff Counter & Scanner (PIN: 1234)</span>
+                  <span>Staff Counter & Scanner</span>
                 </button>
               </li>
               <li>

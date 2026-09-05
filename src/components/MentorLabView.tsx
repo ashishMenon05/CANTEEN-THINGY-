@@ -97,17 +97,17 @@ export const MentorLabView: React.FC = () => {
   return (
     <div className="space-y-6 pb-20">
       {/* Mentor Header */}
-      <div className="rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-amber-950/40 border border-amber-500/30 p-6 shadow-2xl">
+      <div className="console-hero rounded-[2rem] p-6 shadow-2xl sm:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/15 border border-amber-500/30 px-3 py-0.5 text-xs font-bold text-amber-300">
+            <div className="eyebrow inline-flex items-center gap-2 rounded-full bg-orange-500/15 border border-orange-500/30 px-3 py-1 text-[10px] font-bold text-orange-300">
               <Terminal className="h-3.5 w-3.5" />
               <span>Senior Full-Stack Architect & Mentor Console</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              Q-Pass System Architecture & Concurrency Engine
+            <h1 className="max-w-3xl text-3xl sm:text-5xl font-black tracking-tight text-white leading-[1.04]">
+              See the system think.
             </h1>
-            <p className="max-w-2xl text-xs sm:text-sm text-slate-300">
+            <p className="max-w-2xl text-sm sm:text-base text-slate-300 leading-relaxed">
               Explore the offline-first engineering decisions: row-level locking with PostgreSQL transactions,
               cryptographic token hashing, walk-in inventory partitioning, and zero-login student credentials.
             </p>
@@ -116,7 +116,7 @@ export const MentorLabView: React.FC = () => {
           <button
             onClick={runDiagnostics}
             disabled={isRunningDiagnostics}
-            className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-black text-slate-950 hover:bg-amber-400 active:scale-95 transition shadow-lg shadow-amber-500/20"
+            className="primary-action flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black text-white active:scale-95 transition"
           >
             <RefreshCw className={`h-4 w-4 ${isRunningDiagnostics ? "animate-spin" : ""}`} />
             <span>Run All Phase Checks</span>
@@ -124,13 +124,13 @@ export const MentorLabView: React.FC = () => {
         </div>
 
         {/* Sub Navigation */}
-        <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-slate-700/60 pt-4 text-xs font-semibold">
+        <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4 text-xs font-semibold">
           <button
             onClick={() => setActiveSubSection("diagnostics")}
             className={`rounded-xl px-3.5 py-1.5 transition ${
               activeSubSection === "diagnostics"
-                ? "bg-amber-400 text-slate-950 font-bold shadow"
-                : "bg-slate-800 text-slate-300 hover:text-white"
+                ? "bg-orange-500 text-white font-bold shadow"
+                : "console-tab text-slate-300 hover:text-white"
             }`}
           >
             Phase 1-9 Diagnostic Suite
@@ -139,8 +139,8 @@ export const MentorLabView: React.FC = () => {
             onClick={() => setActiveSubSection("race")}
             className={`rounded-xl px-3.5 py-1.5 transition ${
               activeSubSection === "race"
-                ? "bg-amber-400 text-slate-950 font-bold shadow"
-                : "bg-slate-800 text-slate-300 hover:text-white"
+                ? "bg-orange-500 text-white font-bold shadow"
+                : "console-tab text-slate-300 hover:text-white"
             }`}
           >
             Race Condition Simulator (Stock = 1)
@@ -152,8 +152,8 @@ export const MentorLabView: React.FC = () => {
             }}
             className={`rounded-xl px-3.5 py-1.5 transition ${
               activeSubSection === "db"
-                ? "bg-amber-400 text-slate-950 font-bold shadow"
-                : "bg-slate-800 text-slate-300 hover:text-white"
+                ? "bg-orange-500 text-white font-bold shadow"
+                : "console-tab text-slate-300 hover:text-white"
             }`}
           >
             Live Database Inspector
@@ -162,8 +162,8 @@ export const MentorLabView: React.FC = () => {
             onClick={() => setActiveSubSection("terminal")}
             className={`rounded-xl px-3.5 py-1.5 transition ${
               activeSubSection === "terminal"
-                ? "bg-amber-400 text-slate-950 font-bold shadow"
-                : "bg-slate-800 text-slate-300 hover:text-white"
+                ? "bg-orange-500 text-white font-bold shadow"
+                : "console-tab text-slate-300 hover:text-white"
             }`}
           >
             Terminal Commands & Phase 1 Guide
@@ -174,7 +174,7 @@ export const MentorLabView: React.FC = () => {
       {/* SECTION 1: Diagnostics */}
       {activeSubSection === "diagnostics" && (
         <div className="space-y-4">
-          <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-xl">
+          <div className="surface-panel rounded-3xl p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
                 <h3 className="text-base font-bold text-white">Automated Architecture Verification</h3>

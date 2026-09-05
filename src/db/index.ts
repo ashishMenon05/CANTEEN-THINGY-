@@ -35,21 +35,11 @@ try {
 export const pool = {
   connect: async () => {
     if (isMockActive() || !realPool) return mockPool.connect();
-    try {
-      return await realPool.connect();
-    } catch (err) {
-      activateMock();
-      return mockPool.connect();
-    }
+    return realPool.connect();
   },
   query: async (text: string, values?: any[]) => {
     if (isMockActive() || !realPool) return mockPool.query(text, values);
-    try {
-      return await realPool.query(text, values);
-    } catch (err) {
-      activateMock();
-      return mockPool.query(text, values);
-    }
+    return realPool.query(text, values);
   },
   on: (event: string, callback: Function) => {
     if (!isMockActive() && realPool) {

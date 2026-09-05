@@ -2,7 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 
-const MOCK_DB_PATH = "c:/Ashish/q-pass-canteen-ordering-system/src/db/mockdb.json";
+const MOCK_DB_PATH = process.env.QPASS_MOCK_DB_PATH || path.join(process.cwd(), "src", "db", "mockdb.json");
 
 export interface MockFoodItem {
   id: number;
@@ -250,6 +250,7 @@ function readDb(): any {
   try {
     if (!fs.existsSync(MOCK_DB_PATH)) {
       const data = getInitialData();
+      fs.mkdirSync(path.dirname(MOCK_DB_PATH), { recursive: true });
       fs.writeFileSync(MOCK_DB_PATH, JSON.stringify(data, null, 2), "utf-8");
       return data;
     }
@@ -258,6 +259,7 @@ function readDb(): any {
   } catch (e) {
     console.warn("Error reading mockdb.json, recreating...", e);
     const data = getInitialData();
+    fs.mkdirSync(path.dirname(MOCK_DB_PATH), { recursive: true });
     fs.writeFileSync(MOCK_DB_PATH, JSON.stringify(data, null, 2), "utf-8");
     return data;
   }
@@ -265,7 +267,10 @@ function readDb(): any {
 
 function writeDb(data: any) {
   try {
-    fs.writeFileSync(MOCK_DB_PATH, JSON.stringify(data, null, 2), "utf-8");
+    fs.mkdirSync(path.dirname(MOCK_DB_PATH), { recursive: true });
+    const tempPath = `${MOCK_DB_PATH}.${process.pid}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf-8");
+    fs.renameSync(tempPath, MOCK_DB_PATH);
   } catch (e) {
     console.error("Error writing mockdb.json", e);
   }

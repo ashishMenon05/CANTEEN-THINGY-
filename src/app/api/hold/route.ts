@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/db";
 import { getTodayDateString } from "@/lib/qpass";
 import crypto from "crypto";
+import { readJson } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +14,11 @@ interface HoldItemRequest {
 export async function POST(req: NextRequest) {
   const client = await pool.connect();
   try {
-    const body = await req.json();
+    const body = await readJson<{ items?: HoldItemRequest[]; holdSessionId?: string }>(req);
     const items: HoldItemRequest[] = body.items;
     const existingSessionId: string | undefined = body.holdSessionId;
 
-    if (!Array.isArray(items) || items.length === 0) {
+    if (!Array.isArray(items) || items.length === 0 || items.length > 25) {
       return NextResponse.json({ success: false, error: "Items array is required" }, { status: 400 });
     }
 
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     // Process each item with SELECT ... FOR UPDATE to avoid race conditions
     for (const item of items) {
-      if (!item.foodItemId || item.quantity <= 0) {
+      if (!Number.isInteger(item.foodItemId) || !Number.isInteger(item.quantity) || item.quantity <= 0 || item.quantity > 100) {
         throw new Error("Invalid item or quantity");
       }
 
