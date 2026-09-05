@@ -99,3 +99,22 @@ npx drizzle-kit push
 
 ### Step 4: Start the Server
 Run `npm run dev`. The database proxy will detect the active PostgreSQL connection on port 5432, connect to it, initialize the tables, and seed the default menu items catalog automatically.
+
+### Optional Backend and Mentor Configuration
+
+For production, configure a non-default staff PIN in the database and set:
+
+```env
+DATABASE_URL=postgresql://postgres:password@localhost:5432/app_db
+QPASS_MOCK_DB_PATH=./src/db/mockdb.json
+```
+
+The Mentor backend endpoint is available at `POST /api/mentor/ask`. To enable an OpenAI-compatible provider, add these server-only variables:
+
+```env
+OPENAI_API_KEY=your-server-side-key
+OPENAI_BASE_URL=https://api.openai.com/v1/chat/completions
+OPENAI_MODEL=gpt-4o-mini
+```
+
+Without an API key, the endpoint provides local diagnostic guidance. Never expose `OPENAI_API_KEY` through `NEXT_PUBLIC_*` variables or client-side code.

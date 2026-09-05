@@ -25,23 +25,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   todayDate,
 }) => {
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md">
+    <header className="app-nav sticky top-0 z-40 border-b backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-amber-600 to-orange-500 shadow-lg shadow-orange-500/20 text-white font-black text-xl">
+          <div className="brand-mark flex h-10 w-10 items-center justify-center rounded-xl text-white font-black text-xl">
             <Coffee className="h-6 w-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xl font-bold tracking-tight text-white">
+              <span className="text-xl font-black tracking-tight text-white">
                 Q<span className="text-orange-500">-Pass</span>
               </span>
               <span className="hidden sm:inline-flex items-center rounded-full bg-orange-500/10 px-2 py-0.5 text-xs font-semibold text-orange-400 border border-orange-500/20">
                 Zero-Login PWA
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 font-medium">Campus Canteen Pre-Ordering & Fast Pickup</p>
+              <p className="text-[11px] text-slate-400 font-medium tracking-wide">Campus Canteen / Fast Pickup</p>
           </div>
         </div>
 

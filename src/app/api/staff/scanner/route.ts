@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/db";
 import { hashOrderToken, getTodayDateString } from "@/lib/qpass";
+import { readJson, rateLimit, tooManyRequests } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const client = await pool.connect();
   try {
-    const body = await req.json();
-    const rawTokenInput = body.token?.trim();
-    const scannedBy = body.staffName?.trim() || "Canteen Pickup Counter 1";
+    const limit = rateLimit(req, "scanner", 30, 60_000);
+    if (!limit.allowed) return tooManyRequests(limit.retryAfterSeconds);
+
+    const body = await readJson<{ token?: unknown; staffName?: unknown }>(req, 4_000);
+    const rawTokenInput = typeof body.token === "string" ? body.token.trim() : "";
+    const scannedBy = typeof body.staffName === "string" ? body.staffName.trim().slice(0, 60) : "Canteen Pickup Counter 1";
 
     if (!rawTokenInput) {
       return NextResponse.json(

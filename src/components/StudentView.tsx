@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ShoppingBag,
   Clock,
@@ -13,7 +13,6 @@ import {
   CreditCard,
   Phone,
   User,
-  ArrowRight,
   ShieldCheck,
   RefreshCw,
   QrCode,
@@ -98,6 +97,11 @@ export const StudentView: React.FC<StudentViewProps> = ({
     return [];
   });
   const [showSavedPasses, setShowSavedPasses] = useState(false);
+  const menuStackRef = useRef<HTMLDivElement | null>(null);
+  const [stackIndex, setStackIndex] = useState(0);
+  const dragStartY = useRef<number | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDraggingDeck, setIsDraggingDeck] = useState(false);
 
   // Countdown timer for 10-minute hold
   useEffect(() => {
@@ -306,6 +310,68 @@ export const StudentView: React.FC<StudentViewProps> = ({
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  const shiftStack = (direction: "up" | "down") => {
+    if (filteredItems.length < 2) return;
+    setStackIndex((current) =>
+      direction === "down"
+        ? Math.min(current + 1, filteredItems.length - 1)
+        : Math.max(current - 1, 0),
+    );
+  };
+
+  const handleDeckPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    dragStartY.current = event.clientY;
+    setIsDraggingDeck(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleDeckPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartY.current !== null) {
+      setDragOffset(event.clientY - dragStartY.current);
+    }
+  };
+
+  const handleDeckPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartY.current === null) return;
+    const distance = event.clientY - dragStartY.current;
+    if (Math.abs(distance) > 45) {
+      shiftStack(distance < 0 ? "down" : "up");
+    }
+    dragStartY.current = null;
+    setIsDraggingDeck(false);
+    setDragOffset(0);
+  };
+
+  useEffect(() => {
+    const menuStack = menuStackRef.current;
+    if (!menuStack || filteredItems.length < 2) return;
+
+    let wheelDistance = 0;
+    let lastAdvanceAt = 0;
+    const handleNativeWheel = (event: WheelEvent) => {
+      const isDown = event.deltaY > 0;
+      const isAtEnd = isDown && stackIndex >= filteredItems.length - 1;
+      const isAtStart = !isDown && stackIndex <= 0;
+      if (isAtEnd || isAtStart) return;
+
+      event.preventDefault();
+      wheelDistance += event.deltaY;
+      const now = Date.now();
+      if (Math.abs(wheelDistance) < 45 || now - lastAdvanceAt < 420) return;
+
+      setStackIndex((current) =>
+        isDown
+          ? Math.min(current + 1, filteredItems.length - 1)
+          : Math.max(current - 1, 0),
+      );
+      wheelDistance = 0;
+      lastAdvanceAt = now;
+    };
+
+    menuStack.addEventListener("wheel", handleNativeWheel, { passive: false });
+    return () => menuStack.removeEventListener("wheel", handleNativeWheel);
+  }, [filteredItems.length, stackIndex]);
+
   return (
     <div className="space-y-6 pb-20">
       {/* Offline Alert Banner */}
@@ -334,19 +400,18 @@ export const StudentView: React.FC<StudentViewProps> = ({
       )}
 
       {/* Hero Banner: Zero Login Architecture */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700/80 p-6 shadow-xl">
+      <div className="hero-panel relative overflow-hidden rounded-[2rem] p-6 shadow-xl sm:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full bg-orange-500/15 border border-orange-500/30 px-3 py-1 text-xs font-semibold text-orange-400">
               <Sparkles className="h-3.5 w-3.5" />
-              <span>Campus Pre-Order • Skip The Canteen Rush</span>
+              <span>Block B kitchen / today&apos;s service</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              Zero Login. Instant Pickup Pass.
+            <h1 className="editorial-heading max-w-2xl text-4xl sm:text-6xl text-white leading-[0.98]">
+              Canteen food,<br />on your time.
             </h1>
-            <p className="max-w-xl text-xs sm:text-sm text-slate-300">
-              Order food from your classroom with reliable Wi-Fi. Download your secure QR token. Present it at the
-              canteen counter for lightning-fast verification—even if the canteen has zero mobile network.
+            <p className="max-w-xl text-sm sm:text-base text-slate-300 leading-relaxed">
+              The good stuff goes quickly. Reserve breakfast, lunch, or a late chai before you leave class, then collect it at the counter.
             </p>
           </div>
 
@@ -367,8 +432,14 @@ export const StudentView: React.FC<StudentViewProps> = ({
               className="flex items-center gap-1.5 rounded-xl bg-slate-800 border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700 transition"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-              <span>Refresh Stock</span>
+              <span>See today&apos;s menu</span>
             </button>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-white/10 pt-4 text-[11px] font-semibold text-slate-300">
+            <span className="flex items-center gap-2"><span className="trust-dot h-2 w-2 rounded-full" />Pickup in minutes</span>
+            <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[var(--mint)]" />No account needed</span>
+            <span className="flex items-center gap-2"><QrCode className="h-3.5 w-3.5 text-[var(--cyan)]" />Pass works offline</span>
           </div>
         </div>
 
@@ -413,9 +484,58 @@ export const StudentView: React.FC<StudentViewProps> = ({
         ))}
       </div>
 
-      {/* Food Items Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filteredItems.map((item) => {
+      {/* Food Items Slider */}
+      <div className="relative">
+        {!isLoading && filteredItems.length > 0 && (
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="eyebrow text-[10px] font-bold text-orange-300">Today&apos;s counter</p>
+              <p className="mt-1 text-sm text-slate-400">Swipe through what&apos;s fresh</p>
+            </div>
+          </div>
+        )}
+
+        <div
+          ref={menuStackRef}
+          className="menu-stack relative mx-auto min-h-[31rem] w-full max-w-3xl"
+          onPointerDown={handleDeckPointerDown}
+          onPointerMove={handleDeckPointerMove}
+          onPointerUp={handleDeckPointerUp}
+          onPointerCancel={handleDeckPointerUp}
+        >
+        {isLoading &&
+          <div className="food-card absolute inset-x-0 top-0 overflow-hidden rounded-2xl border">
+              <div className="h-44 animate-pulse bg-white/10" />
+              <div className="space-y-3 p-4">
+                <div className="h-4 w-3/4 animate-pulse rounded bg-white/10" />
+                <div className="h-3 w-full animate-pulse rounded bg-white/10" />
+                <div className="h-3 w-2/3 animate-pulse rounded bg-white/10" />
+                <div className="flex justify-between pt-3">
+                  <div className="h-3 w-16 animate-pulse rounded bg-white/10" />
+                  <div className="h-8 w-24 animate-pulse rounded-xl bg-white/10" />
+                </div>
+              </div>
+          </div>
+        }
+
+        {!isLoading && filteredItems.length === 0 && (
+          <div className="surface-panel min-w-full rounded-3xl p-8 text-center sm:p-12">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500/15 text-orange-300">
+              <RefreshCw className="h-6 w-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-black text-white">The counter is refreshing</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-400">
+              Today&apos;s menu is taking a moment to arrive. Refresh the stock feed and we&apos;ll bring the tray back.
+            </p>
+            <button onClick={onRefresh} className="primary-action mt-5 rounded-xl px-4 py-2.5 text-xs font-black text-white">
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!isLoading && filteredItems.map((item, index) => {
+          const stackPosition = (index - stackIndex + filteredItems.length) % filteredItems.length;
+          if (stackPosition > 2) return null;
           const inv = item.inventory;
           const isSoldOut = inv.availableOnline <= 0 || inv.isOnlineClosed;
           const inCartQty = cart[item.id]?.quantity || 0;
@@ -423,7 +543,12 @@ export const StudentView: React.FC<StudentViewProps> = ({
           return (
             <div
               key={item.id}
-              className={`flex flex-col justify-between overflow-hidden rounded-2xl border transition-all ${
+              style={{
+                transform: `translateY(${stackPosition * 18 + (stackPosition === 0 ? dragOffset : 0)}px) scale(${1 - stackPosition * 0.035})`,
+                zIndex: 10 - stackPosition,
+                transition: isDraggingDeck ? "none" : "transform 520ms cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
+              className={`stack-card food-card absolute inset-x-0 top-0 flex flex-col justify-between overflow-hidden rounded-2xl border transition-all ${
                 isSoldOut
                   ? "border-slate-800 bg-slate-900/50 opacity-70"
                   : "border-slate-800 bg-slate-900 hover:border-slate-700 hover:shadow-lg"
@@ -517,7 +642,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
                     <button
                       onClick={() => addToCart(item)}
                       disabled={isSoldOut}
-                      className="flex items-center gap-1 rounded-xl bg-orange-600 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-orange-500 active:scale-95 transition disabled:cursor-not-allowed disabled:opacity-40"
+                      className="primary-action flex items-center gap-1 rounded-xl px-3.5 py-1.5 text-xs font-bold text-white shadow active:scale-95 transition disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Add to Tray
@@ -528,6 +653,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Floating Bottom Bar if Cart Has Items */}
