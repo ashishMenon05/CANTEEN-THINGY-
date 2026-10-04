@@ -25,7 +25,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
     <footer className="footer-band mt-16 border-t text-slate-400">
       {/* Main Footer Container */}
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
+        <div className="footer-columns grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
           {/* Column 1: Brand & Description */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -45,8 +45,8 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
               Thoughtfully made campus favourites, ready when you are. Browse the day&apos;s menu,
               order ahead, and collect with a secure Q-Pass.
             </p>
-            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-400 border border-emerald-500/20">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="footer-status inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium">
+              <span className="semantic-dot-success h-2 w-2 rounded-full" />
               <span>All Canteen Counters Operational</span>
             </div>
           </div>
@@ -60,7 +60,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
               <li>
                 <button
                   onClick={() => setActiveTab?.("student")}
-                  className="flex items-center gap-2 text-slate-400 transition hover:text-orange-400"
+                  className="footer-link flex items-center gap-2 text-slate-400 transition hover:text-orange-400"
                 >
                   <UtensilsCrossed className="h-3.5 w-3.5 text-gold" />
                   <span>Today&apos;s menu</span>
@@ -69,7 +69,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
               <li>
                 <button
                   onClick={() => setActiveTab?.("staff")}
-                  className="flex items-center gap-2 text-slate-400 transition hover:text-orange-400"
+                  className="footer-link flex items-center gap-2 text-slate-400 transition hover:text-orange-400"
                 >
                   <QrCode className="h-3.5 w-3.5 text-orange-500" />
                   <span>Pickup counter</span>
@@ -78,7 +78,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
               <li>
                 <button
                   onClick={() => setActiveTab?.("mentor")}
-                  className="flex items-center gap-2 text-slate-400 transition hover:text-amber-400"
+                  className="footer-link flex items-center gap-2 text-slate-400 transition hover:text-amber-400"
                 >
                   <Terminal className="h-3.5 w-3.5 text-amber-400" />
                   <span>Kitchen notes</span>
@@ -127,7 +127,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
                 <Mail className="h-3.5 w-3.5 text-orange-400" />
                 <a
                   href="mailto:canteen-support@campus.edu"
-                  className="hover:text-orange-400 transition underline underline-offset-2 decoration-slate-700 hover:decoration-orange-400"
+                  className="footer-link underline underline-offset-2 decoration-slate-700 hover:text-orange-400 hover:decoration-orange-400"
                 >
                   canteen-support@campus.edu
                 </a>
