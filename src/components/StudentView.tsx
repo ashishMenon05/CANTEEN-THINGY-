@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShoppingBag,
   Clock,
@@ -9,17 +9,21 @@ import {
   AlertTriangle,
   Plus,
   Minus,
-  Sparkles,
   CreditCard,
   Phone,
   User,
-  ShieldCheck,
   RefreshCw,
   QrCode,
+  ArrowRight,
+  Search,
+  LayoutGrid,
+  Layers,
+  Flame,
+  X,
 } from "lucide-react";
 import { SavedReceipt } from "./QrReceiptModal";
 
-interface FoodItem {
+export interface FoodItem {
   id: number;
   name: string;
   description: string;
@@ -39,12 +43,14 @@ interface FoodItem {
   };
 }
 
-interface CartItem {
+export interface CartItem {
   foodItemId: number;
   name: string;
   price: number;
   quantity: number;
   imageUrl: string | null;
+  category?: string;
+  isVeg?: boolean;
 }
 
 interface StudentViewProps {
@@ -53,6 +59,10 @@ interface StudentViewProps {
   onRefresh: () => void;
   onReceiptGenerated: (receipt: SavedReceipt) => void;
   isOnline: boolean;
+  cart: Record<number, CartItem>;
+  setCart: React.Dispatch<React.SetStateAction<Record<number, CartItem>>>;
+  isCartOpen: boolean;
+  setIsCartOpen: (open: boolean) => void;
   onOpenScannerWithToken?: (token: string) => void;
 }
 
@@ -62,11 +72,50 @@ export const StudentView: React.FC<StudentViewProps> = ({
   onRefresh,
   onReceiptGenerated,
   isOnline,
+  cart,
+  setCart,
+  isCartOpen,
+  setIsCartOpen,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
-  const [cart, setCart] = useState<Record<number, CartItem>>({});
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [dietaryFilter, setDietaryFilter] = useState<"all" | "veg" | "non-veg">("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"grid" | "deck">("grid");
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const heroTrackRef = useRef<HTMLElement | null>(null);
+  const heroImageRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    let frame = 0;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (heroImageRef.current) heroImageRef.current.style.transform = "scale(1.08)";
+      return;
+    }
+
+    const updateHeroImage = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const track = heroTrackRef.current;
+        const image = heroImageRef.current;
+        if (!track || !image) return;
+
+        const distance = track.offsetHeight - window.innerHeight;
+        const progress = distance > 0
+          ? Math.min(1, Math.max(0, -track.getBoundingClientRect().top / distance))
+          : 0;
+        image.style.transform = `translate3d(0, ${-progress * 7}%, 0) scale(${1.08 + progress * 0.06})`;
+      });
+    };
+
+    updateHeroImage();
+    window.addEventListener("scroll", updateHeroImage, { passive: true });
+    window.addEventListener("resize", updateHeroImage);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", updateHeroImage);
+      window.removeEventListener("resize", updateHeroImage);
+    };
+  }, []);
 
   // 10-minute hold state
   const [holdSessionId, setHoldSessionId] = useState<string | null>(null);
@@ -75,13 +124,31 @@ export const StudentView: React.FC<StudentViewProps> = ({
   const [isHolding, setIsHolding] = useState(false);
   const [holdError, setHoldError] = useState<string | null>(null);
 
-  // Customer zero-login fields
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  // Customer zero-login fields (auto-saved to localStorage for convenience)
+  const [customerName, setCustomerName] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("qpass_customer_name") || "";
+    }
+    return "";
+  });
+  const [customerPhone, setCustomerPhone] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("qpass_customer_phone") || "";
+    }
+    return "";
+  });
+
+  // Save student details locally on change
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (customerName) localStorage.setItem("qpass_customer_name", customerName);
+      if (customerPhone) localStorage.setItem("qpass_customer_phone", customerPhone);
+    }
+  }, [customerName, customerPhone]);
 
   // Payment simulator state
   const [isPaying, setIsPaying] = useState(false);
-  const [paymentProvider, setPaymentProvider] = useState("UPI (Google Pay / PhonePe)");
+  const [paymentProvider, setPaymentProvider] = useState("PhonePe UPI");
   const [simulateFailure, setSimulateFailure] = useState(false);
 
   // Offline cached passes
@@ -97,6 +164,8 @@ export const StudentView: React.FC<StudentViewProps> = ({
     return [];
   });
   const [showSavedPasses, setShowSavedPasses] = useState(false);
+
+  // Deck / Stack slider state
   const menuStackRef = useRef<HTMLDivElement | null>(null);
   const [stackIndex, setStackIndex] = useState(0);
   const dragStartY = useRef<number | null>(null);
@@ -127,10 +196,35 @@ export const StudentView: React.FC<StudentViewProps> = ({
     return () => clearInterval(interval);
   }, [holdExpiresAt]);
 
-  const categories = ["All", "Snacks", "Breakfast", "Lunch", "Beverages"];
+  const categories = [
+    { id: "All", label: "All Items", icon: "✨" },
+    { id: "Breakfast", label: "Breakfast", icon: "☕" },
+    { id: "Lunch", label: "Lunch & Meals", icon: "🍱" },
+    { id: "Snacks", label: "Quick Snacks", icon: "🥐" },
+    { id: "Beverages", label: "Drinks & Chai", icon: "🥤" },
+  ];
 
-  const filteredItems =
-    selectedCategory === "All" ? items : items.filter((i) => i.category === selectedCategory);
+  // Filtered and searched items
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      // Category filter
+      if (selectedCategory !== "All" && item.category !== selectedCategory) {
+        return false;
+      }
+      // Dietary filter
+      if (dietaryFilter === "veg" && !item.isVeg) return false;
+      if (dietaryFilter === "non-veg" && item.isVeg) return false;
+      // Search query filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchesName = item.name.toLowerCase().includes(query);
+        const matchesDesc = item.description.toLowerCase().includes(query);
+        const matchesCat = item.category.toLowerCase().includes(query);
+        if (!matchesName && !matchesDesc && !matchesCat) return false;
+      }
+      return true;
+    });
+  }, [items, selectedCategory, dietaryFilter, searchQuery]);
 
   // Cart operations
   const addToCart = (item: FoodItem) => {
@@ -152,20 +246,29 @@ export const StudentView: React.FC<StudentViewProps> = ({
         price: item.price,
         quantity: newQty,
         imageUrl: item.imageUrl,
+        category: item.category,
+        isVeg: item.isVeg,
       },
     }));
   };
 
   const removeFromCart = (foodItemId: number) => {
+    setHoldError(null);
     setCart((prev) => {
-      const copy = { ...prev };
-      if (!copy[foodItemId]) return copy;
-      if (copy[foodItemId].quantity <= 1) {
-        delete copy[foodItemId];
-      } else {
-        copy[foodItemId].quantity -= 1;
+      const existing = prev[foodItemId];
+      if (!existing) return prev;
+      if (existing.quantity <= 1) {
+        const updated = { ...prev };
+        delete updated[foodItemId];
+        return updated;
       }
-      return copy;
+      return {
+        ...prev,
+        [foodItemId]: {
+          ...existing,
+          quantity: existing.quantity - 1,
+        },
+      };
     });
   };
 
@@ -174,77 +277,72 @@ export const StudentView: React.FC<StudentViewProps> = ({
       try {
         await fetch(`/api/hold?holdSessionId=${holdSessionId}`, { method: "DELETE" });
       } catch (e) {
-        console.error(e);
+        console.warn("Could not release hold:", e);
       }
     }
     setCart({});
     setHoldSessionId(null);
     setHoldExpiresAt(null);
-    setSecondsRemaining(null);
     setHoldError(null);
+    setIsCartOpen(false);
   };
 
-  // Acquire or refresh 10-Minute Hold Lock
+  // Acquire atomic 10-minute hold lock
   const acquireHoldLock = async () => {
-    const itemsToHold = Object.values(cart).map((c) => ({
+    setIsHolding(true);
+    setHoldError(null);
+
+    const holdItems = Object.values(cart).map((c) => ({
       foodItemId: c.foodItemId,
       quantity: c.quantity,
     }));
-
-    if (itemsToHold.length === 0) return;
-
-    setIsHolding(true);
-    setHoldError(null);
 
     try {
       const res = await fetch("/api/hold", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: itemsToHold,
+          items: holdItems,
           holdSessionId: holdSessionId || undefined,
         }),
       });
 
       const data = await res.json();
+
       if (!res.ok || !data.success) {
-        setHoldError(data.error || "Could not reserve stock. Some items may have sold out.");
-        return false;
+        throw new Error(data.error || "Could not reserve stock. An item might be sold out.");
       }
 
       setHoldSessionId(data.holdSessionId);
       setHoldExpiresAt(new Date(data.expiresAt));
       setIsCartOpen(false);
       setIsCheckoutOpen(true);
-      return true;
     } catch (err: any) {
-      setHoldError(err.message || "Network error reserving items.");
-      return false;
+      setHoldError(err.message || "Failed to reserve items.");
+      onRefresh(); // Refresh stock in background
     } finally {
       setIsHolding(false);
     }
   };
 
-  // Complete Checkout & Server-Side UPI Payment Verification
+  // Complete Order & Payment
   const handleCheckoutAndPay = async () => {
-    if (!holdSessionId) {
-      setHoldError("Hold expired or invalid session.");
-      return;
-    }
-
     setIsPaying(true);
     setHoldError(null);
 
     try {
-      // Step 1: Create Order in PENDING status
+      // Step 1: Create Order
       const orderRes = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           holdSessionId,
-          customerName: customerName || "Student Guest",
-          customerPhone: customerPhone || undefined,
-          paymentMethod: paymentProvider,
+          customerName: customerName.trim() || "Student (Walk-in)",
+          customerPhone: customerPhone.trim() || undefined,
+          items: Object.values(cart).map((c) => ({
+            foodItemId: c.foodItemId,
+            quantity: c.quantity,
+          })),
         }),
       });
 
@@ -310,6 +408,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  // Stack deck gestures
   const shiftStack = (direction: "up" | "down") => {
     if (filteredItems.length < 2) return;
     setStackIndex((current) =>
@@ -342,53 +441,23 @@ export const StudentView: React.FC<StudentViewProps> = ({
     setDragOffset(0);
   };
 
-  useEffect(() => {
-    const menuStack = menuStackRef.current;
-    if (!menuStack || filteredItems.length < 2) return;
-
-    let wheelDistance = 0;
-    let lastAdvanceAt = 0;
-    const handleNativeWheel = (event: WheelEvent) => {
-      const isDown = event.deltaY > 0;
-      const isAtEnd = isDown && stackIndex >= filteredItems.length - 1;
-      const isAtStart = !isDown && stackIndex <= 0;
-      if (isAtEnd || isAtStart) return;
-
-      event.preventDefault();
-      wheelDistance += event.deltaY;
-      const now = Date.now();
-      if (Math.abs(wheelDistance) < 45 || now - lastAdvanceAt < 420) return;
-
-      setStackIndex((current) =>
-        isDown
-          ? Math.min(current + 1, filteredItems.length - 1)
-          : Math.max(current - 1, 0),
-      );
-      wheelDistance = 0;
-      lastAdvanceAt = now;
-    };
-
-    menuStack.addEventListener("wheel", handleNativeWheel, { passive: false });
-    return () => menuStack.removeEventListener("wheel", handleNativeWheel);
-  }, [filteredItems.length, stackIndex]);
-
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-8 pb-28">
       {/* Offline Alert Banner */}
       {!isOnline && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-300">
+        <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-300 shadow-lg">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-400" />
-            <div>
+            <div className="flex-1">
               <h4 className="font-bold text-sm">Offline Simulation Mode Active</h4>
               <p className="text-xs text-amber-200/90 mt-0.5">
-                Pre-orders require live server connectivity for stock reservations and UPI payments. However, you can
-                access your previously saved QR pickup passes without any internet connection!
+                New pre-orders require live server connectivity for stock reservations and UPI payments. However, your
+                previously issued QR pickup passes remain 100% accessible and can be scanned at the counter!
               </p>
               {savedPasses.length > 0 && (
                 <button
                   onClick={() => setShowSavedPasses(true)}
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1 text-xs font-bold text-slate-950 hover:bg-amber-400"
+                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-black text-slate-950 hover:bg-amber-400 shadow transition"
                 >
                   <QrCode className="h-3.5 w-3.5" />
                   View {savedPasses.length} Saved Offline Pass{savedPasses.length > 1 ? "es" : ""}
@@ -399,382 +468,622 @@ export const StudentView: React.FC<StudentViewProps> = ({
         </div>
       )}
 
-      {/* Hero Banner: Zero Login Architecture */}
-      <div className="hero-panel relative overflow-hidden rounded-[2rem] p-6 shadow-xl sm:p-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full bg-orange-500/15 border border-orange-500/30 px-3 py-1 text-xs font-semibold text-orange-400">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Block B kitchen / today&apos;s service</span>
-            </div>
-            <h1 className="editorial-heading max-w-2xl text-4xl sm:text-6xl text-white leading-[0.98]">
-              Canteen food,<br />on your time.
-            </h1>
-            <p className="max-w-xl text-sm sm:text-base text-slate-300 leading-relaxed">
-              The good stuff goes quickly. Reserve breakfast, lunch, or a late chai before you leave class, then collect it at the counter.
-            </p>
+      {/* A long, pinned food-film scene: the frame drifts as the guest scrolls through it. */}
+      <section ref={heroTrackRef} className="cinematic-track">
+        <div className="hero-panel cinematic-stage relative flex flex-col justify-between overflow-hidden px-6 py-8 sm:px-12 sm:py-12 lg:px-20">
+          <img
+            ref={heroImageRef}
+            className="cinematic-image"
+            loading="lazy"
+            src={items[0]?.imageUrl || "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=2000&q=90"}
+            alt={items[0]?.name || "A colorful, freshly prepared dish"}
+          />
+          <div className="cinematic-grain" aria-hidden="true" />
+          <div className="hero-hand-note" aria-hidden="true">
+            <svg viewBox="0 0 64 58">
+              <path d="M58 4C48 8 40 16 35 25c-4 8-8 14-16 18" />
+              <path d="m19 43 1-8m-1 8 8-2" />
+            </svg>
+            <span>made with care</span>
+          </div>
+          <div className="relative z-10 flex items-center justify-between">
+            <span className="eyebrow text-[10px]">Q-PASS / THE DAILY PLATE</span>
+            <span className="hidden text-[10px] uppercase tracking-[0.22em] text-white/70 sm:block">
+              Freshly made · Ready for you
+            </span>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            {savedPasses.length > 0 && (
+          <div className="relative z-10 flex flex-1 items-center py-12">
+            <div className="max-w-4xl">
+              <p className="eyebrow mb-5 flex items-center gap-3 text-xs">
+                <span className="h-px w-10 bg-[var(--gold)]" />
+                MADE WITH A LITTLE MORE FEELING
+              </p>
+              <h1 className="cinematic-title">
+                The day tastes<br />
+                <span>better from here.</span>
+              </h1>
+              <p className="mt-6 max-w-md text-sm leading-7 text-white/75 sm:text-base">
+                Fresh from our kitchen, made for the moment you finally get to slow down.
+              </p>
+              <a href="#menu" className="cinematic-cta mt-8 inline-flex items-center gap-4">
+                <span>Come to the table</span>
+                <ArrowRight className="h-4 w-4" />
+              </a>
+            </div>
+          </div>
+
+          <div className="relative z-10 flex flex-col gap-5 border-t border-white/20 pt-5 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-white/75">
+              <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Fresh from the kitchen</span>
+              <span>Seasonal, always</span>
+              <span>Ready when you are</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {savedPasses.length > 0 && (
+                <button onClick={() => setShowSavedPasses(true)} className="text-[10px] text-white/70 underline underline-offset-4 hover:text-white">
+                  Saved passes ({savedPasses.length})
+                </button>
+              )}
+              <button onClick={onRefresh} disabled={isLoading} aria-label="Refresh menu" className="text-white/65 transition hover:text-white disabled:opacity-40">
+                <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+              </button>
+              <span className="hidden font-serif text-xs italic text-white/50 sm:block">Scroll to savour ↓</span>
+            </div>
+          </div>
+
+          {secondsRemaining !== null && (
+            <div className="relative z-10 mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/20 bg-black/50 p-4 text-xs text-white backdrop-blur-md">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-gold" />
+                <div>
+                  <p className="font-bold">Your table is held for 10 minutes</p>
+                  <p className="text-white/65">Complete checkout to secure your selection.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-base font-bold text-gold-light">{formatTimer(secondsRemaining)}</span>
+                <button onClick={() => setIsCheckoutOpen(true)} className="rounded-full bg-white px-4 py-2 text-xs font-bold text-black">
+                  Finish order →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="kitchen-story" aria-labelledby="kitchen-story-title">
+        <div className="kitchen-story-copy">
+          <p className="eyebrow mb-5">A MOMENT BETWEEN CLASSES</p>
+          <h2 id="kitchen-story-title" className="font-display text-4xl leading-[1.08] text-white sm:text-6xl">
+            Not just a meal.<br /><span className="font-display-italic text-gold-light">Your little pause.</span>
+          </h2>
+          <p className="mt-6 max-w-md text-sm leading-7 text-white/55">
+            Good ingredients. A hot pan. The familiar comfort of something made right now, not hours ago.
+            Find your favourite, order ahead, and make a moment of it.
+          </p>
+          <a href="#menu" className="story-link mt-8 inline-flex items-center gap-3">
+            See what&apos;s cooking <ArrowRight className="h-4 w-4" />
+          </a>
+        </div>
+        <figure className="kitchen-story-image">
+          <img
+            src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1100&q=85"
+            alt="A colorful bowl of fresh seasonal ingredients"
+            loading="lazy"
+          />
+          <span className="kitchen-image-note" aria-hidden="true">always a little extra</span>
+          <figcaption><span>FROM THE KITCHEN</span> A little care in every detail</figcaption>
+        </figure>
+      </section>
+
+      {/* Interactive Controls & Filters Bar */}
+      <section id="menu" className="scroll-mt-28 space-y-5">
+        <div className="flex flex-col gap-2 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="eyebrow mb-2">THE KITCHEN, RIGHT NOW</p>
+            <h2 className="font-display text-3xl text-white sm:text-5xl">Today&apos;s good things.</h2>
+          </div>
+          <p className="max-w-sm text-xs leading-relaxed text-slate-400">
+            Made today. Ordered in a moment. Waiting for you when you arrive.
+          </p>
+        </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Search Box */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search dishes, snacks, beverages..."
+              className="w-full rounded-2xl bg-slate-900/90 border border-white/10 pl-10 pr-9 py-2.5 text-xs text-white placeholder-slate-400 focus:border-yellow-700 focus:outline-none focus:ring-1 focus:ring-yellow-700 shadow-inner"
+            />
+            {searchQuery && (
               <button
-                onClick={() => setShowSavedPasses(true)}
-                className="flex items-center gap-2 rounded-xl bg-slate-800 border border-slate-700 px-3.5 py-2 text-xs font-bold text-orange-400 hover:bg-slate-700 hover:text-orange-300 transition"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-2.5 rounded-full p-0.5 text-slate-400 hover:text-white"
               >
-                <QrCode className="h-4 w-4" />
-                <span>My Saved Passes ({savedPasses.length})</span>
+                <X className="h-4 w-4" />
               </button>
             )}
-
-            <button
-              onClick={onRefresh}
-              disabled={isLoading}
-              className="flex items-center gap-1.5 rounded-xl bg-slate-800 border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700 transition"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-              <span>See today&apos;s menu</span>
-            </button>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-white/10 pt-4 text-[11px] font-semibold text-slate-300">
-            <span className="flex items-center gap-2"><span className="trust-dot h-2 w-2 rounded-full" />Pickup in minutes</span>
-            <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[var(--mint)]" />No account needed</span>
-            <span className="flex items-center gap-2"><QrCode className="h-3.5 w-3.5 text-[var(--cyan)]" />Pass works offline</span>
-          </div>
-        </div>
-
-        {/* 10-Minute Hold Status Strip */}
-        {secondsRemaining !== null && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-orange-500/20 border border-orange-500/40 p-3 text-xs text-orange-300">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 animate-spin text-orange-400" />
-              <span>
-                <strong>10-Minute Inventory Hold Active:</strong> Your tray is locked in PostgreSQL.
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm font-black text-white bg-orange-600 px-2.5 py-0.5 rounded-lg shadow">
-                {formatTimer(secondsRemaining)}
-              </span>
+          {/* Right Controls: Dietary Filter & View Mode Switcher */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Dietary Toggle */}
+            <div className="flex items-center rounded-2xl bg-slate-900/90 p-1 border border-white/10 text-xs font-semibold">
               <button
-                onClick={() => setIsCheckoutOpen(true)}
-                className="rounded-lg bg-white px-2.5 py-1 text-xs font-black text-orange-700 hover:bg-orange-50"
+                onClick={() => setDietaryFilter("all")}
+                className={`px-3 py-1.5 rounded-xl transition ${
+                  dietaryFilter === "all" ? "bg-white/15 text-white" : "text-slate-400 hover:text-white"
+                }`}
               >
-                Complete Payment Now
+                All Food
+              </button>
+              <button
+                onClick={() => setDietaryFilter("veg")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
+                  dietaryFilter === "veg" ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <span className="badge-veg" />
+                <span>Pure Veg</span>
+              </button>
+              <button
+                onClick={() => setDietaryFilter("non-veg")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
+                  dietaryFilter === "non-veg" ? "bg-red-500/20 text-red-400 font-bold border border-red-500/30" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <span className="badge-nonveg" />
+                <span>Non-Veg</span>
+              </button>
+            </div>
+
+            {/* View Mode: Grid vs Deck */}
+            <div className="flex items-center rounded-2xl bg-slate-900/90 p-1 border border-white/10 text-xs font-semibold">
+              <button
+                onClick={() => setViewMode("grid")}
+                title="Grid View"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
+                  viewMode === "grid" ? "bg-[var(--gold-dim)] text-white font-bold shadow" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Grid Menu</span>
+              </button>
+              <button
+                onClick={() => setViewMode("deck")}
+                title="Swipeable Card Deck"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
+                  viewMode === "deck" ? "bg-[var(--gold-dim)] text-white font-bold shadow" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Card Deck</span>
               </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Category Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-semibold scrollbar-none">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`whitespace-nowrap rounded-xl px-4 py-2 transition-all ${
-              selectedCategory === cat
-                ? "bg-orange-500 text-white shadow-md shadow-orange-500/20 font-bold"
-                : "bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60"
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* Food Items Slider */}
-      <div className="relative">
-        {!isLoading && filteredItems.length > 0 && (
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <p className="eyebrow text-[10px] font-bold text-orange-300">Today&apos;s counter</p>
-              <p className="mt-1 text-sm text-slate-400">Swipe through what&apos;s fresh</p>
-            </div>
-          </div>
-        )}
-
-        <div
-          ref={menuStackRef}
-          className="menu-stack relative mx-auto min-h-[31rem] w-full max-w-3xl"
-          onPointerDown={handleDeckPointerDown}
-          onPointerMove={handleDeckPointerMove}
-          onPointerUp={handleDeckPointerUp}
-          onPointerCancel={handleDeckPointerUp}
-        >
-        {isLoading &&
-          <div className="food-card absolute inset-x-0 top-0 overflow-hidden rounded-2xl border">
-              <div className="h-44 animate-pulse bg-white/10" />
-              <div className="space-y-3 p-4">
-                <div className="h-4 w-3/4 animate-pulse rounded bg-white/10" />
-                <div className="h-3 w-full animate-pulse rounded bg-white/10" />
-                <div className="h-3 w-2/3 animate-pulse rounded bg-white/10" />
-                <div className="flex justify-between pt-3">
-                  <div className="h-3 w-16 animate-pulse rounded bg-white/10" />
-                  <div className="h-8 w-24 animate-pulse rounded-xl bg-white/10" />
-                </div>
-              </div>
-          </div>
-        }
-
-        {!isLoading && filteredItems.length === 0 && (
-          <div className="surface-panel min-w-full rounded-3xl p-8 text-center sm:p-12">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500/15 text-orange-300">
-              <RefreshCw className="h-6 w-6" />
-            </div>
-            <h3 className="mt-4 text-lg font-black text-white">The counter is refreshing</h3>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-400">
-              Today&apos;s menu is taking a moment to arrive. Refresh the stock feed and we&apos;ll bring the tray back.
-            </p>
-            <button onClick={onRefresh} className="primary-action mt-5 rounded-xl px-4 py-2.5 text-xs font-black text-white">
-              Try again
-            </button>
-          </div>
-        )}
-
-        {!isLoading && filteredItems.map((item, index) => {
-          const stackPosition = (index - stackIndex + filteredItems.length) % filteredItems.length;
-          if (stackPosition > 2) return null;
-          const inv = item.inventory;
-          const isSoldOut = inv.availableOnline <= 0 || inv.isOnlineClosed;
-          const inCartQty = cart[item.id]?.quantity || 0;
-
-          return (
-            <div
-              key={item.id}
-              style={{
-                transform: `translateY(${stackPosition * 18 + (stackPosition === 0 ? dragOffset : 0)}px) scale(${1 - stackPosition * 0.035})`,
-                zIndex: 10 - stackPosition,
-                transition: isDraggingDeck ? "none" : "transform 520ms cubic-bezier(0.22, 1, 0.36, 1)",
-              }}
-              className={`stack-card food-card absolute inset-x-0 top-0 flex flex-col justify-between overflow-hidden rounded-2xl border transition-all ${
-                isSoldOut
-                  ? "border-slate-800 bg-slate-900/50 opacity-70"
-                  : "border-slate-800 bg-slate-900 hover:border-slate-700 hover:shadow-lg"
+        {/* Category Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-semibold scrollbar-none">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`menu-category whitespace-nowrap transition ${
+                selectedCategory === cat.id ? "is-active" : ""
               }`}
             >
-              {/* Image & Status Badge */}
-              <div className="relative h-44 w-full bg-slate-800 overflow-hidden">
-                {item.imageUrl ? (
-                  <img
-                    src={item.imageUrl}
-                    alt={item.name}
-                    className="h-full w-full object-cover transition duration-300 hover:scale-105"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-slate-800 text-slate-600">
-                    No photo
-                  </div>
-                )}
-
-                {/* Veg / Non-veg dot */}
-                <div className="absolute top-3 left-3 flex h-6 w-6 items-center justify-center rounded-md bg-white/90 shadow">
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${item.isVeg ? "bg-emerald-600" : "bg-red-600"}`}
-                  />
-                </div>
-
-                {/* Stock allocation badge */}
-                <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between rounded-xl bg-slate-950/80 backdrop-blur-md px-2.5 py-1 text-[11px] text-white">
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        inv.availableOnline > 10
-                          ? "bg-emerald-400"
-                          : inv.availableOnline > 0
-                          ? "bg-amber-400 animate-pulse"
-                          : "bg-red-500"
-                      }`}
-                    />
-                    <span>
-                      {inv.isOnlineClosed
-                        ? "Online Ordering Closed"
-                        : inv.availableOnline > 0
-                        ? `${inv.availableOnline} Online Left`
-                        : "Sold Out Online"}
-                    </span>
-                  </div>
-
-                  <span
-                    title="Protected for walk-in students at the physical counter"
-                    className="text-[10px] text-slate-400 font-mono"
-                  >
-                    Walk-in: {inv.walkinProtectedStock}
-                  </span>
-                </div>
-              </div>
-
-              {/* Item Info */}
-              <div className="p-4 flex-1 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-bold text-white text-base leading-snug">{item.name}</h3>
-                    <span className="shrink-0 font-black text-orange-400 text-base">
-                      ₹{item.price.toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-400 line-clamp-2">{item.description}</p>
-                </div>
-
-                {/* Counter & Action */}
-                <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-500 font-medium">{item.category}</span>
-
-                  {inCartQty > 0 ? (
-                    <div className="flex items-center gap-2 rounded-xl bg-orange-500/20 border border-orange-500/40 p-1">
-                      <button
-                        onClick={() => removeFromCart(item.id)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-600 text-white hover:bg-orange-500 active:scale-95 transition"
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </button>
-                      <span className="w-5 text-center text-xs font-bold text-white">{inCartQty}</span>
-                      <button
-                        onClick={() => addToCart(item)}
-                        disabled={inCartQty >= inv.availableOnline}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-600 text-white hover:bg-orange-500 active:scale-95 transition disabled:opacity-40"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => addToCart(item)}
-                      disabled={isSoldOut}
-                      className="primary-action flex items-center gap-1 rounded-xl px-3.5 py-1.5 text-xs font-bold text-white shadow active:scale-95 transition disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Add to Tray
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+              <span>{cat.icon}</span>
+              <span>{cat.label}</span>
+            </button>
+          ))}
         </div>
-      </div>
+      </section>
 
-      {/* Floating Bottom Bar if Cart Has Items */}
+      {/* Main Food Showcase: Grid View (Default) */}
+      {viewMode === "grid" && (
+        <div>
+          {isLoading && (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                <div key={n} className="food-card overflow-hidden rounded-3xl border border-white/10">
+                  <div className="h-44 animate-pulse bg-white/10" />
+                  <div className="p-5 space-y-3">
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-white/10" />
+                    <div className="h-3 w-full animate-pulse rounded bg-white/10" />
+                    <div className="flex justify-between items-center pt-2">
+                      <div className="h-4 w-16 animate-pulse rounded bg-white/10" />
+                      <div className="h-8 w-24 animate-pulse rounded-xl bg-white/10" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!isLoading && filteredItems.length === 0 && (
+            <div className="surface-panel rounded-3xl p-10 text-center max-w-lg mx-auto">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500/15 text-orange-400 mb-4">
+                <Search className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-black text-white">No dishes matched your filters</h3>
+              <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+                Try switching dietary preferences or clearing your search query to see other available canteen items.
+              </p>
+              <button
+                onClick={() => {
+                  setSelectedCategory("All");
+                  setDietaryFilter("all");
+                  setSearchQuery("");
+                }}
+                className="primary-action mt-5 rounded-xl px-4 py-2 text-xs font-bold text-white"
+              >
+                Reset All Filters
+              </button>
+            </div>
+          )}
+
+          {!isLoading && filteredItems.length > 0 && (
+            <div className="signature-menu-grid grid grid-cols-1 gap-x-7 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredItems.map((item) => {
+                const inv = item.inventory;
+                const isSoldOut = inv.availableOnline <= 0 || inv.isOnlineClosed;
+                const inCartQty = cart[item.id]?.quantity || 0;
+                const isUrgentStock = inv.availableOnline > 0 && inv.availableOnline <= 5;
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`food-card flex flex-col justify-between overflow-hidden border transition-all ${
+                      isSoldOut ? "opacity-60 border-slate-800" : ""
+                    }`}
+                  >
+                    {/* Image & Badges */}
+                    <div className="relative h-72 w-full overflow-hidden bg-slate-900 group sm:h-80">
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          loading="lazy"
+                          className="signature-img h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-slate-500 text-xs">
+                          No photo
+                        </div>
+                      )}
+
+                      {/* Veg / Non-Veg Indicator Tag */}
+                      <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-slate-950/80 backdrop-blur-md px-2 py-1 shadow-md border border-white/10">
+                        <span className={item.isVeg ? "badge-veg" : "badge-nonveg"} />
+                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">
+                          {item.isVeg ? "Veg" : "Non-Veg"}
+                        </span>
+                      </div>
+
+                      {/* Category Tag */}
+                      <div className="absolute top-3 right-3 rounded-full bg-slate-950/80 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold text-slate-300 border border-white/10">
+                        {item.category}
+                      </div>
+
+                      {/* Urgent Low Stock Ribbon */}
+                      {isUrgentStock && (
+                        <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-amber-500/90 text-slate-950 px-2.5 py-0.5 text-[10px] font-black shadow-md animate-pulse">
+                          <Flame className="h-3 w-3" />
+                          <span>Only {inv.availableOnline} Left!</span>
+                        </div>
+                      )}
+
+                      {/* Online Sold Out Banner */}
+                      {isSoldOut && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-xs text-white font-black text-sm uppercase tracking-wider">
+                          {inv.isOnlineClosed ? "Online Ordering Closed" : "Sold Out Online"}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Content Details */}
+                    <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                      <div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <h3 className="font-display text-white text-lg leading-snug tracking-tight">
+                            {item.name}
+                          </h3>
+                          <span className="text-gold-light shrink-0 font-semibold text-lg">
+                            ₹{item.price.toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="mt-1.5 text-xs text-slate-400 line-clamp-2 leading-relaxed font-normal">
+                          {item.description}
+                        </p>
+                      </div>
+
+                      {/* Stock Allocation & Add Stepper */}
+                      <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2">
+                        {/* Live Stock Indicators */}
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-300">
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                inv.availableOnline > 5
+                                  ? "bg-emerald-400"
+                                  : inv.availableOnline > 0
+                                  ? "bg-amber-400 animate-pulse"
+                                  : "bg-red-500"
+                              }`}
+                            />
+                            <span>{inv.availableOnline} servings available</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 block">Prepared fresh for pickup</span>
+                        </div>
+
+                        {/* Interactive Add or Stepper Button */}
+                        {inCartQty > 0 ? (
+                          <div className="flex items-center gap-2 rounded-2xl bg-orange-500/20 border border-orange-500/40 p-1 shadow-inner">
+                            <button
+                              onClick={() => removeFromCart(item.id)}
+                              className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-600 text-white hover:bg-orange-500 active:scale-95 transition cursor-pointer"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                            <span className="w-5 text-center text-xs font-black text-white">{inCartQty}</span>
+                            <button
+                              onClick={() => addToCart(item)}
+                              disabled={inCartQty >= inv.availableOnline}
+                              className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-600 text-white hover:bg-orange-500 active:scale-95 transition disabled:opacity-40 cursor-pointer"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => addToCart(item)}
+                            disabled={isSoldOut}
+                            className="primary-action flex items-center gap-1.5 rounded-2xl px-4 py-2 text-xs font-extrabold text-white shadow-md active:scale-95 transition disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Add</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Alternative View: Interactive Card Deck (Showcase Mode) */}
+      {viewMode === "deck" && (
+        <div className="relative">
+          <div className="mb-3 text-center">
+            <p className="text-xs text-orange-400 font-bold uppercase tracking-widest">Swipeable Showcase Deck</p>
+            <p className="text-xs text-slate-400">Drag up/down or swipe through today&apos;s kitchen selections</p>
+          </div>
+
+          <div
+            ref={menuStackRef}
+            className="menu-stack relative mx-auto min-h-[31rem] w-full max-w-lg"
+            onPointerDown={handleDeckPointerDown}
+            onPointerMove={handleDeckPointerMove}
+            onPointerUp={handleDeckPointerUp}
+            onPointerCancel={handleDeckPointerUp}
+          >
+            {filteredItems.map((item, index) => {
+              const stackPosition = (index - stackIndex + filteredItems.length) % filteredItems.length;
+              if (stackPosition > 2) return null;
+              const inv = item.inventory;
+              const isSoldOut = inv.availableOnline <= 0 || inv.isOnlineClosed;
+              const inCartQty = cart[item.id]?.quantity || 0;
+
+              return (
+                <div
+                  key={item.id}
+                  style={{
+                    transform: `translateY(${stackPosition * 20 + (stackPosition === 0 ? dragOffset : 0)}px) scale(${1 - stackPosition * 0.04})`,
+                    zIndex: 10 - stackPosition,
+                    transition: isDraggingDeck ? "none" : "transform 500ms cubic-bezier(0.16, 1, 0.3, 1)",
+                  }}
+                  className={`stack-card food-card absolute inset-x-0 top-0 flex flex-col justify-between overflow-hidden rounded-3xl border transition-all ${
+                    isSoldOut ? "border-slate-800 opacity-70" : "border-white/10 hover:border-orange-500/40"
+                  }`}
+                >
+                  <div className="relative h-60 w-full bg-slate-900 overflow-hidden">
+                    {item.imageUrl && (
+                      <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                    )}
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-slate-950/80 backdrop-blur-md px-2.5 py-1 border border-white/10">
+                      <span className={item.isVeg ? "badge-veg" : "badge-nonveg"} />
+                      <span className="text-[10px] font-bold text-white uppercase">{item.isVeg ? "Veg" : "Non-Veg"}</span>
+                    </div>
+                    <div className="absolute top-3 right-3 rounded-full bg-slate-950/80 backdrop-blur-md px-3 py-1 text-[11px] font-bold text-white border border-white/10">
+                      {item.category}
+                    </div>
+                  </div>
+
+                  <div className="p-6 space-y-4">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h3 className="font-extrabold text-white text-xl">{item.name}</h3>
+                      <span className="font-black text-orange-400 text-xl">₹{item.price.toFixed(2)}</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">{item.description}</p>
+
+                    <div className="pt-4 border-t border-white/10 flex items-center justify-between">
+                      <span className="text-xs text-slate-400 font-mono">
+                        {inv.availableOnline} online available
+                      </span>
+
+                      {inCartQty > 0 ? (
+                        <div className="flex items-center gap-3 rounded-2xl bg-orange-500/20 border border-orange-500/40 p-1.5">
+                          <button
+                            onClick={() => removeFromCart(item.id)}
+                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-600 text-white"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </button>
+                          <span className="font-black text-sm text-white px-1">{inCartQty}</span>
+                          <button
+                            onClick={() => addToCart(item)}
+                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-600 text-white"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => addToCart(item)}
+                          disabled={isSoldOut}
+                          className="primary-action flex items-center gap-2 rounded-2xl px-5 py-2.5 text-xs font-bold text-white"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span>Add to Tray</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Bottom Tray Bar (Fixed Sticky on Scroll) */}
       {totalItemsCount > 0 && !isCartOpen && !isCheckoutOpen && (
-        <div className="fixed bottom-4 left-4 right-4 z-40 mx-auto max-w-xl">
-          <div className="flex items-center justify-between rounded-2xl bg-orange-600 p-3.5 text-white shadow-2xl shadow-orange-600/40">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-orange-600 font-black">
+        <div className="fixed bottom-6 left-4 right-4 z-40 mx-auto max-w-xl animate-bounce-short">
+          <div className="flex items-center justify-between rounded-3xl bg-gradient-to-r from-orange-600 via-amber-600 to-orange-500 p-4 text-white shadow-2xl shadow-orange-600/40 border border-orange-400/30 backdrop-blur-md">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-orange-600 font-black text-base shadow-md">
                 {totalItemsCount}
               </div>
               <div>
-                <p className="text-xs font-medium text-orange-100">Tray Total</p>
-                <p className="text-lg font-black leading-none">₹{totalAmount.toFixed(2)}</p>
+                <p className="text-[11px] font-bold text-orange-100 uppercase tracking-wider">Your Tray</p>
+                <p className="text-xl font-black leading-none">₹{totalAmount.toFixed(2)}</p>
               </div>
             </div>
 
             <button
               onClick={() => setIsCartOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-xs font-bold text-white hover:bg-slate-900 active:scale-95 shadow transition"
+              className="flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-2.5 text-xs font-extrabold text-white hover:bg-slate-900 active:scale-95 shadow-xl transition cursor-pointer border border-white/10"
             >
-              <span>Review & Lock Hold</span>
-              <ArrowRight className="h-3.5 w-3.5" />
+              <span>Review Tray & Lock Hold</span>
+              <ArrowRight className="h-4 w-4 text-orange-400" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Cart Drawer Modal */}
+      {/* Cart / Tray Drawer Modal */}
       {isCartOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 p-0 sm:p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-6 text-slate-100 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="h-5 w-5 text-orange-400" />
-                <h3 className="text-lg font-bold text-white">Your Pre-Order Tray</h3>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-0 sm:p-4 backdrop-blur-md">
+          <div className="w-full max-w-lg rounded-t-[2.5rem] sm:rounded-[2.5rem] bg-slate-900 border border-white/10 shadow-2xl p-6 sm:p-8 text-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                  <ShoppingBag className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Your Pre-Order Tray</h3>
+                  <p className="text-xs text-slate-400">{totalItemsCount} delicious items selected</p>
+                </div>
               </div>
               <button
                 onClick={() => setIsCartOpen(false)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                className="rounded-full p-2 text-slate-400 hover:bg-white/10 hover:text-white transition cursor-pointer"
               >
-                ✕
+                <X className="h-5 w-5" />
               </button>
             </div>
 
             {holdError && (
-              <div className="mt-3 rounded-xl bg-red-500/15 border border-red-500/30 p-3 text-xs text-red-300">
+              <div className="mt-4 rounded-2xl bg-red-500/15 border border-red-500/30 p-3.5 text-xs text-red-300">
                 {holdError}
               </div>
             )}
 
             {/* Cart Items List */}
-            <div className="mt-4 divide-y divide-slate-800">
+            <div className="mt-4 divide-y divide-white/10">
               {Object.values(cart).map((item) => (
-                <div key={item.foodItemId} className="flex items-center justify-between py-3">
-                  <div>
-                    <h4 className="text-sm font-bold text-white">{item.name}</h4>
-                    <p className="text-xs text-slate-400">
-                      ₹{item.price.toFixed(2)} × {item.quantity} = ₹{(item.price * item.quantity).toFixed(2)}
-                    </p>
+                <div key={item.foodItemId} className="flex items-center justify-between py-3.5">
+                  <div className="flex items-center gap-3">
+                    {item.imageUrl && (
+                      <img src={item.imageUrl} alt={item.name} className="h-12 w-12 rounded-xl object-cover" />
+                    )}
+                    <div>
+                      <h4 className="text-sm font-bold text-white">{item.name}</h4>
+                      <p className="text-xs text-slate-400">
+                        ₹{item.price.toFixed(2)} × {item.quantity} = ₹{(item.price * item.quantity).toFixed(2)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 rounded-xl bg-slate-800 p-1 border border-slate-700">
+
+                  <div className="flex items-center gap-2 rounded-2xl bg-slate-800 p-1 border border-white/10">
                     <button
                       onClick={() => removeFromCart(item.foodItemId)}
-                      className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-700 text-white hover:bg-slate-600"
+                      className="flex h-7 w-7 items-center justify-center rounded-xl bg-slate-700 text-white hover:bg-slate-600 transition cursor-pointer"
                     >
-                      <Minus className="h-3 w-3" />
+                      <Minus className="h-3.5 w-3.5" />
                     </button>
-                    <span className="w-5 text-center text-xs font-bold text-white">{item.quantity}</span>
+                    <span className="w-5 text-center text-xs font-black text-white">{item.quantity}</span>
                     <button
                       onClick={() => {
                         const foodItem = items.find((f) => f.id === item.foodItemId);
                         if (foodItem) addToCart(foodItem);
                       }}
-                      className="flex h-6 w-6 items-center justify-center rounded-lg bg-orange-600 text-white hover:bg-orange-500"
+                      className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-600 text-white hover:bg-orange-500 transition cursor-pointer"
                     >
-                      <Plus className="h-3 w-3" />
+                      <Plus className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Total and Hold Guarantee Explanation */}
-            <div className="mt-4 rounded-2xl bg-slate-800/80 p-4 border border-slate-700/60 space-y-2">
+            {/* Cost Breakdown */}
+            <div className="mt-5 rounded-3xl bg-slate-950/70 p-5 border border-white/10 space-y-2.5">
               <div className="flex justify-between text-xs text-slate-300">
                 <span>Items Subtotal</span>
-                <span>₹{totalAmount.toFixed(2)}</span>
+                <span className="font-semibold text-white">₹{totalAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xs text-slate-300">
-                <span>Canteen Pre-Order Fee</span>
-                <span className="text-emerald-400 font-semibold">₹0.00 (Free)</span>
+                <span>Canteen Convenience Fee</span>
+                <span className="text-emerald-400 font-bold">₹0.00 (Campus Sponsored)</span>
               </div>
-              <div className="flex justify-between border-t border-slate-700 pt-2 font-bold text-white text-base">
-                <span>Total Amount to Pay</span>
+              <div className="flex justify-between border-t border-white/10 pt-3 font-black text-white text-lg">
+                <span>Total Amount</span>
                 <span className="text-orange-400">₹{totalAmount.toFixed(2)}</span>
               </div>
             </div>
 
-            <div className="mt-3 flex items-start gap-2 text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+            {/* Hold Guarantee Note */}
+            <div className="mt-4 flex items-start gap-2.5 text-xs text-slate-400 bg-orange-500/10 p-3.5 rounded-2xl border border-orange-500/20">
               <Lock className="h-4 w-4 text-orange-400 shrink-0 mt-0.5" />
               <span>
-                Clicking <strong>Proceed to Hold & Pay</strong> locks this inventory for <strong>10 minutes</strong> in
-                PostgreSQL with atomic row locks, ensuring nobody can take your food while you scan the UPI QR.
+                Clicking <strong>Proceed to Hold & Pay</strong> reserves these items for <strong>10 minutes</strong> with atomic row-level locks in PostgreSQL, guaranteeing your stock while you complete UPI payment.
               </span>
             </div>
 
             {/* Actions */}
-            <div className="mt-4 flex gap-2">
+            <div className="mt-6 flex gap-3">
               <button
                 onClick={clearCart}
-                className="w-1/3 rounded-xl bg-slate-800 py-3 text-xs font-bold text-slate-300 hover:bg-slate-700 transition"
+                className="w-1/3 rounded-2xl bg-slate-800 py-3.5 text-xs font-bold text-slate-300 hover:bg-slate-700 transition cursor-pointer"
               >
-                Clear
+                Clear Tray
               </button>
               <button
                 onClick={acquireHoldLock}
                 disabled={isHolding || Object.keys(cart).length === 0}
-                className="w-2/3 flex items-center justify-center gap-2 rounded-xl bg-orange-600 py-3 text-xs font-bold text-white shadow-lg shadow-orange-600/30 hover:bg-orange-500 disabled:opacity-50 transition"
+                className="w-2/3 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 py-3.5 text-xs font-extrabold text-white shadow-xl shadow-orange-500/30 hover:opacity-95 disabled:opacity-50 transition cursor-pointer active:scale-98"
               >
                 {isHolding ? (
-                  <span>Reserving Lock...</span>
+                  <span>Reserving Stock in DB...</span>
                 ) : (
                   <>
                     <span>Proceed to Hold & Pay</span>
@@ -789,85 +1098,90 @@ export const StudentView: React.FC<StudentViewProps> = ({
 
       {/* Checkout & UPI Payment Modal */}
       {isCheckoutOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-6 text-slate-100 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-orange-400" />
-                <h3 className="text-lg font-bold text-white">UPI Payment Checkout</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-[2.5rem] bg-slate-900 border border-white/15 shadow-2xl p-6 sm:p-8 text-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                  <CreditCard className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Instant UPI Checkout</h3>
+                  <p className="text-xs text-slate-400">Zero login • Direct pickup token</p>
+                </div>
               </div>
               <button
                 onClick={() => setIsCheckoutOpen(false)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                className="rounded-full p-2 text-slate-400 hover:bg-white/10 hover:text-white transition cursor-pointer"
               >
-                ✕
+                <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Hold countdown timer */}
-            <div className="mt-3 flex items-center justify-between rounded-xl bg-orange-500/15 border border-orange-500/30 px-3.5 py-2 text-xs text-orange-300 font-medium">
-              <span>Holding inventory for:</span>
-              <span className="font-mono text-sm font-black text-white bg-orange-600 px-2 py-0.5 rounded">
+            <div className="mt-4 flex items-center justify-between rounded-2xl bg-gradient-to-r from-orange-500/20 to-amber-500/20 border border-orange-500/30 px-4 py-2.5 text-xs text-orange-200">
+              <span className="font-semibold">Stock Locked For:</span>
+              <span className="font-mono text-sm font-black text-white bg-orange-600 px-3 py-0.5 rounded-xl shadow">
                 {formatTimer(secondsRemaining)}
               </span>
             </div>
 
             {holdError && (
-              <div className="mt-3 rounded-xl bg-red-500/15 border border-red-500/30 p-3 text-xs text-red-300">
+              <div className="mt-3 rounded-2xl bg-red-500/15 border border-red-500/30 p-3 text-xs text-red-300">
                 {holdError}
               </div>
             )}
 
             {/* Zero-Login Optional Reference Info */}
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-3.5">
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Customer Nickname / Dept (Zero Login):
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Customer Name / Dept (Optional):
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                  <User className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="e.g. Rohan - CS 3rd Year"
-                    className="w-full rounded-xl bg-slate-800 border border-slate-700 pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none"
+                    placeholder="e.g. Bhuvan - CS Block"
+                    className="w-full rounded-2xl bg-slate-950 border border-white/10 pl-10 pr-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1">
-                  No account, password, or OTP required. This helps canteen staff call your name if needed.
+                  No password required. Used by counter staff to call your tray.
                 </p>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Phone Number (Optional for SMS receipt backup):
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Mobile Number (Optional):
                 </label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                  <Phone className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <input
                     type="tel"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     placeholder="+91 98765 43210"
-                    className="w-full rounded-xl bg-slate-800 border border-slate-700 pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none"
+                    className="w-full rounded-2xl bg-slate-950 border border-white/10 pl-10 pr-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               {/* UPI Payment Provider Selection */}
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">Select UPI Provider:</label>
+                <label className="text-xs font-bold text-slate-300 block mb-1.5">Select Payment Provider:</label>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  {["PhonePe UPI", "Google Pay UPI", "Paytm UPI", "BHIM UPI"].map((p) => (
+                  {["PhonePe UPI", "Google Pay UPI", "Paytm UPI", "Campus Card"].map((p) => (
                     <button
                       key={p}
                       type="button"
                       onClick={() => setPaymentProvider(p)}
-                      className={`flex items-center justify-center rounded-xl p-2.5 border transition ${
+                      className={`flex items-center justify-center rounded-2xl p-3 border transition cursor-pointer ${
                         paymentProvider === p
-                          ? "border-orange-500 bg-orange-500/20 text-white font-bold"
-                          : "border-slate-800 bg-slate-800/80 text-slate-400 hover:text-white"
+                          ? "border-orange-500 bg-orange-500/25 text-white font-extrabold shadow-md"
+                          : "border-white/10 bg-slate-950/80 text-slate-400 hover:text-white hover:bg-slate-800"
                       }`}
                     >
                       {p}
@@ -877,39 +1191,39 @@ export const StudentView: React.FC<StudentViewProps> = ({
               </div>
 
               {/* Developer Test Simulator Option */}
-              <div className="rounded-xl bg-slate-950/60 p-3 border border-slate-800 text-[11px] text-slate-400">
+              <div className="rounded-2xl bg-slate-950/80 p-3.5 border border-white/10 text-xs text-slate-400">
                 <div className="flex items-center justify-between">
-                  <span>Dev Test: Simulate Payment Failure</span>
+                  <span className="font-semibold text-slate-300">Simulate Payment Failure</span>
                   <input
                     type="checkbox"
                     checked={simulateFailure}
                     onChange={(e) => setSimulateFailure(e.target.checked)}
-                    className="h-4 w-4 rounded accent-orange-600"
+                    className="h-4 w-4 rounded accent-orange-500 cursor-pointer"
                   />
                 </div>
                 <p className="mt-1 text-[10px] text-slate-500">
-                  Tests how the system handles declined UPI transactions and releases held inventory.
+                  Tests how the system handles declined UPI transactions and automatically restores held inventory.
                 </p>
               </div>
             </div>
 
             {/* Total and Checkout Action */}
-            <div className="mt-5 pt-3 border-t border-slate-800">
+            <div className="mt-6 pt-4 border-t border-white/10">
               <div className="flex justify-between items-center mb-4">
                 <span className="text-xs text-slate-400">Total Payable Amount</span>
-                <span className="text-xl font-black text-orange-400">₹{totalAmount.toFixed(2)}</span>
+                <span className="text-2xl font-black text-orange-400">₹{totalAmount.toFixed(2)}</span>
               </div>
 
               <button
                 onClick={handleCheckoutAndPay}
                 disabled={isPaying}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 py-3 text-xs font-bold text-white shadow-xl shadow-orange-600/30 hover:opacity-95 active:scale-98 transition disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 py-3.5 text-xs font-black text-white shadow-xl shadow-orange-500/40 hover:opacity-95 active:scale-98 transition disabled:opacity-50 cursor-pointer"
               >
                 {isPaying ? (
-                  <span>Verifying UPI Gateway with Server...</span>
+                  <span>Verifying Transaction with Gateway...</span>
                 ) : (
                   <>
-                    <span>Pay ₹{totalAmount.toFixed(2)} & Get Pickup QR</span>
+                    <span>Pay ₹{totalAmount.toFixed(2)} & Generate Pass</span>
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -921,38 +1235,42 @@ export const StudentView: React.FC<StudentViewProps> = ({
 
       {/* Offline Saved Passes Modal */}
       {showSavedPasses && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-6 text-slate-100 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <QrCode className="h-5 w-5 text-orange-400" />
-                <h3 className="text-lg font-bold text-white">Offline Saved Passes ({savedPasses.length})</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-[2.5rem] bg-slate-900 border border-white/15 shadow-2xl p-6 sm:p-8 text-slate-100 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                  <QrCode className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Saved Pickup Passes</h3>
+                  <p className="text-xs text-slate-400">{savedPasses.length} passes cached on this device</p>
+                </div>
               </div>
               <button
                 onClick={() => setShowSavedPasses(false)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                className="rounded-full p-2 text-slate-400 hover:bg-white/10 hover:text-white transition cursor-pointer"
               >
-                ✕
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <p className="mt-2 text-xs text-slate-400">
-              These passes are cached locally on this device. You can display them at the canteen counter without any
-              mobile network.
+            <p className="mt-3 text-xs text-slate-400 leading-relaxed">
+              These passes are cryptographically signed and stored in your device&apos;s local cache. You can present them at the counter without any cellular data!
             </p>
 
             <div className="mt-4 space-y-3">
               {savedPasses.map((p, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between rounded-2xl bg-slate-800/80 p-3.5 border border-slate-700/80"
+                  className="flex items-center justify-between rounded-2xl bg-slate-950/80 p-4 border border-white/10 hover:border-orange-500/40 transition shadow-md"
                 >
                   <div>
-                    <span className="font-mono text-xs font-bold text-orange-400">{p.orderCode}</span>
-                    <p className="text-xs text-slate-200 font-semibold mt-0.5">
+                    <span className="font-mono text-xs font-black text-orange-400">{p.orderCode}</span>
+                    <p className="text-xs text-slate-200 font-bold mt-0.5">
                       {p.items?.map((i) => `${i.quantity}x ${i.name}`).join(", ")}
                     </p>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[10px] text-slate-400 mt-1">
                       Paid: ₹{p.totalAmount?.toFixed(2)} • {new Date(p.createdAt).toLocaleDateString()}
                     </p>
                   </div>
@@ -961,7 +1279,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
                       setShowSavedPasses(false);
                       onReceiptGenerated(p);
                     }}
-                    className="rounded-xl bg-orange-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-500"
+                    className="rounded-xl bg-orange-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-orange-500 transition shadow cursor-pointer"
                   >
                     View QR
                   </button>

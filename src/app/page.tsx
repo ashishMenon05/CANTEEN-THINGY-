@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Navbar } from "@/components/Navbar";
-import { StudentView } from "@/components/StudentView";
+import { StudentView, CartItem } from "@/components/StudentView";
 import { StaffView } from "@/components/StaffView";
 import { MentorLabView } from "@/components/MentorLabView";
 import { QrReceiptModal, SavedReceipt } from "@/components/QrReceiptModal";
@@ -15,6 +15,10 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [todayDate, setTodayDate] = useState<string>("");
   const [onlineOrderingActive, setOnlineOrderingActive] = useState<boolean>(true);
+
+  // Cart state shared across Navbar and StudentView
+  const [cart, setCart] = useState<Record<number, CartItem>>({});
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Active QR Receipt Modal
   const [activeReceipt, setActiveReceipt] = useState<SavedReceipt | null>(null);
@@ -62,16 +66,25 @@ export default function HomePage() {
     setActiveTab("staff");
   };
 
+  // Open cart from anywhere
+  const handleOpenCart = () => {
+    setActiveTab("student");
+    setIsCartOpen(true);
+  };
+
+  // Compute total cart item count
+  const cartCount = Object.values(cart).reduce((sum, item) => sum + item.quantity, 0);
+
   return (
-    <div className="app-shell min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-orange-500 selection:text-white">
+    <div className="app-shell min-h-screen flex flex-col selection:bg-orange-500 selection:text-white">
       {/* Top Navigation */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         isOnline={isOnline}
         setIsOnline={setIsOnline}
-        cartCount={0}
-        openCart={() => setActiveTab("student")}
+        cartCount={cartCount}
+        openCart={handleOpenCart}
         onlineOrderingActive={onlineOrderingActive}
         todayDate={todayDate}
       />
@@ -85,6 +98,10 @@ export default function HomePage() {
             onRefresh={fetchInventory}
             onReceiptGenerated={(receipt) => setActiveReceipt(receipt)}
             isOnline={isOnline}
+            cart={cart}
+            setCart={setCart}
+            isCartOpen={isCartOpen}
+            setIsCartOpen={setIsCartOpen}
             onOpenScannerWithToken={(token) => {
               setIncomingTokenForStaff(token);
               setActiveTab("staff");

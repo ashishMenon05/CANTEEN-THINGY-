@@ -2,7 +2,7 @@
 
 import React from "react";
 import {
-  Coffee,
+  UtensilsCrossed,
   Clock,
   MapPin,
   Mail,
@@ -29,21 +29,21 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
           {/* Column 1: Brand & Description */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-amber-600 to-orange-500 shadow-lg shadow-orange-500/20 text-white font-black text-xl">
-                <Coffee className="h-5 w-5" />
+              <div className="brand-mark flex h-10 w-10 items-center justify-center rounded-full text-white font-black text-xl">
+                <UtensilsCrossed className="h-5 w-5" />
               </div>
               <div>
                 <span className="text-xl font-bold tracking-tight text-white">
-                  Q<span className="text-orange-500">-Pass</span>
+                  Q-Pass<span className="text-gold">.</span>
                 </span>
-                <span className="ml-2 inline-flex items-center rounded-md bg-orange-500/10 px-2 py-0.5 text-[10px] font-semibold text-orange-400 border border-orange-500/20">
-                  Campus Dining
+                <span className="ml-2 inline-flex items-center rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                  The Daily Plate
                 </span>
               </div>
             </div>
             <p className="text-xs leading-relaxed text-slate-400">
-              Offline-first college canteen pre-ordering system with zero-login access, atomic
-              inventory holds, and cryptographically verified QR code pickups.
+              Thoughtfully made campus favourites, ready when you are. Browse the day&apos;s menu,
+              order ahead, and collect with a secure Q-Pass.
             </p>
             <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-400 border border-emerald-500/20">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -54,7 +54,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
           {/* Column 2: Quick Navigation */}
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
-              Quick Navigation
+              Around the table
             </h3>
             <ul className="mt-4 space-y-2.5 text-xs">
               <li>
@@ -62,8 +62,8 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
                   onClick={() => setActiveTab?.("student")}
                   className="flex items-center gap-2 text-slate-400 transition hover:text-orange-400"
                 >
-                  <Coffee className="h-3.5 w-3.5 text-orange-500" />
-                  <span>Student Menu & Pre-Ordering</span>
+                  <UtensilsCrossed className="h-3.5 w-3.5 text-gold" />
+                  <span>Today&apos;s menu</span>
                 </button>
               </li>
               <li>
@@ -72,7 +72,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
                   className="flex items-center gap-2 text-slate-400 transition hover:text-orange-400"
                 >
                   <QrCode className="h-3.5 w-3.5 text-orange-500" />
-                  <span>Staff Counter & Scanner</span>
+                  <span>Pickup counter</span>
                 </button>
               </li>
               <li>
@@ -81,7 +81,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
                   className="flex items-center gap-2 text-slate-400 transition hover:text-amber-400"
                 >
                   <Terminal className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Mentor Lab & Architecture Console</span>
+                  <span>Kitchen notes</span>
                 </button>
               </li>
               <li>
@@ -96,7 +96,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
           {/* Column 3: Operating Hours & Location */}
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
-              Operating Hours & Location
+              Find us here
             </h3>
             <ul className="mt-4 space-y-2.5 text-xs text-slate-400">
               <li className="flex items-start gap-2">
@@ -117,10 +117,10 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
           {/* Column 4: Contact & Helpdesk */}
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
-              Support & Helpdesk
+              Need a hand?
             </h3>
             <p className="mt-4 text-xs text-slate-400">
-              Have an issue with your QR receipt or payment deduction? Contact the canteen support desk:
+              Need help with an order or pickup? We&apos;re happy to help:
             </p>
             <ul className="mt-3 space-y-2 text-xs">
               <li className="flex items-center gap-2 text-slate-300">
@@ -151,7 +151,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
               © {currentYear} <span className="text-slate-300 font-medium">Q-Pass Canteen Systems</span>. All rights reserved.
             </p>
             <p className="text-[11px] text-slate-600 mt-0.5">
-              Designed for high-concurrency campus dining • Powered by Next.js & Drizzle ORM
+              Freshly made on campus · Order ahead, collect at the counter
             </p>
           </div>
 
@@ -179,4 +179,3 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab }) => {
     </footer>
   );
 };
-
