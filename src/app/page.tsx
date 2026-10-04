@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Navbar } from "@/components/Navbar";
-import { StudentView, CartItem } from "@/components/StudentView";
+import { StudentView } from "@/components/StudentView";
+import type { CartItem, FoodItem } from "@/components/StudentView";
 import { StaffView } from "@/components/StaffView";
 import { MentorLabView } from "@/components/MentorLabView";
 import { QrReceiptModal, SavedReceipt } from "@/components/QrReceiptModal";
@@ -11,7 +12,7 @@ import { Footer } from "@/components/Footer";
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<"student" | "staff" | "mentor">("student");
   const [isOnline, setIsOnline] = useState<boolean>(true);
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<FoodItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [todayDate, setTodayDate] = useState<string>("");
   const [onlineOrderingActive, setOnlineOrderingActive] = useState<boolean>(true);

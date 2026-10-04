@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Q-Pass</string>
+    <string name="title_activity_main">Q-Pass</string>
+    <string name="package_name">com.qpass.canteen</string>
+    <string name="custom_url_scheme">com.qpass.canteen</string>
+</resources>

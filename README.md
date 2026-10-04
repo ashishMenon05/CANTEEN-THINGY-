@@ -74,6 +74,28 @@ Open your web browser (Chrome, Edge, Firefox, or Safari) and go to:
 
 The application will load instantly with seeded canteen items (Veggies puff, dosa, coffee,Keema roll, Keema puff, executive veg thali, chai) and high-quality images.
 
+### Build an Android test app
+
+The Android app shell loads the live Q-Pass web server, so keep the server running while testing and connect the phone and computer to the same Wi-Fi network.
+
+1. Install Android Studio with its Android SDK and a supported JDK.
+2. Start Next.js so it is reachable from your phone:
+   ```powershell
+   npm run dev -- --hostname 0.0.0.0 --port 3000
+   ```
+3. Find the computer's Wi-Fi IPv4 address with `ipconfig`. Allow Node.js through Windows Firewall on your private network if prompted.
+4. In a second PowerShell window, from the project folder, set the phone-reachable server URL and build:
+   ```powershell
+   $env:CAPACITOR_SERVER_URL = "http://192.168.1.20:3000"
+   npx cap add android
+   npm run android:build
+   ```
+   Replace `192.168.1.20` with the computer's actual Wi-Fi IPv4 address. Run `npx cap add android` only once; for later builds, run only `npm run android:build` after setting the URL.
+5. Install the generated debug APK on the Android phone:
+   `android/app/build/outputs/apk/debug/app-debug.apk`
+
+The APK uses the current server URL embedded at build time. Keep the same URL and server running during a test session; rebuild the APK if the computer's IP address changes. Android requires confirmation to install a debug APK from outside the Play Store.
+
 ---
 
 ## Connecting a PostgreSQL Database (Optional)
