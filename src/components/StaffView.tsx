@@ -16,6 +16,9 @@ import {
   Utensils,
   ChevronDown,
   ChevronUp,
+  DollarSign,
+  TrendingUp,
+  Layers,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import jsQR from "jsqr";
@@ -168,14 +171,15 @@ export const StaffView: React.FC<StaffViewProps> = ({
     }
   }, [incomingToken, isAuthenticated, handleVerifyToken, onClearIncomingToken]);
 
-  const handlePinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePinSubmit = async (e?: React.FormEvent, customPin?: string) => {
+    if (e) e.preventDefault();
     setAuthError(null);
+    const pin = customPin || pinInput;
     try {
       const res = await fetch("/api/staff/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: pinInput }),
+        body: JSON.stringify({ pin }),
       });
       const data = await res.json();
       if (res.ok && data.authenticated) {
@@ -187,7 +191,6 @@ export const StaffView: React.FC<StaffViewProps> = ({
       setAuthError(err.message || "Auth error");
     }
   };
-
 
   // Camera QR code scanner loop
   const startCamera = async () => {
@@ -204,7 +207,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
       }
     } catch (err: any) {
       setIsCameraActive(false);
-      setScanError("Camera access denied or unavailable: " + err.message);
+      setScanError("Camera access denied or unavailable: " + (err as any).message);
     }
   };
 
@@ -249,7 +252,6 @@ export const StaffView: React.FC<StaffViewProps> = ({
 
     animationFrameId.current = requestAnimationFrame(scanVideoFrame);
   };
-
 
   // Change order status manually (e.g. mark READY)
   const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
@@ -307,15 +309,14 @@ export const StaffView: React.FC<StaffViewProps> = ({
   // Login Gate for Staff
   if (!isAuthenticated) {
     return (
-      <div className="mx-auto max-w-md py-12 px-4">
-        <div className="rounded-3xl bg-slate-900 border border-slate-800 p-8 shadow-2xl text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-600/20 text-orange-500 border border-orange-500/30">
-            <Lock className="h-7 w-7" />
+      <div className="mx-auto max-w-md py-16 px-4">
+        <div className="rounded-[2.5rem] bg-slate-900 border border-white/10 p-8 sm:p-10 shadow-2xl text-center backdrop-blur-xl">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-tr from-orange-600 to-amber-500 text-white shadow-xl shadow-orange-500/20">
+            <Lock className="h-8 w-8" />
           </div>
-          <h2 className="mt-4 text-2xl font-black text-white">Canteen Staff Counter</h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Zero-login applies to student pre-orders. Staff must enter the counter PIN to manage inventory and scan
-            tokens.
+          <h2 className="mt-5 text-2xl font-black text-white tracking-tight">Counter Staff Terminal</h2>
+          <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+            Zero-login is enabled for student customers. Counter staff enter the terminal PIN to manage inventory and verify pickup QR passes.
           </p>
 
           <form onSubmit={handlePinSubmit} className="mt-6 space-y-4">
@@ -325,21 +326,33 @@ export const StaffView: React.FC<StaffViewProps> = ({
                 maxLength={8}
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Enter Staff PIN (Default: 1234)"
-                className="w-full rounded-2xl bg-slate-800 border border-slate-700 py-3 text-center text-lg font-mono tracking-widest text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none"
+                placeholder="Enter 4-digit PIN"
+                className="w-full rounded-2xl bg-slate-950 border border-white/10 py-3.5 text-center text-2xl font-mono tracking-widest text-white placeholder-slate-600 focus:border-orange-500 focus:outline-none"
               />
             </div>
 
-            {authError && <p className="text-xs font-semibold text-red-400">{authError}</p>}
+            {authError && <p className="text-xs font-bold text-red-400">{authError}</p>}
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-orange-600 py-3 text-xs font-bold text-white shadow-lg shadow-orange-600/30 hover:bg-orange-500 active:scale-98 transition"
+              className="w-full rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 py-3.5 text-xs font-black text-white shadow-xl shadow-orange-500/30 hover:opacity-95 active:scale-98 transition cursor-pointer"
             >
               Unlock Counter Terminal
             </button>
 
-            <p className="text-[11px] text-slate-500">Demo counter PIN: 1234</p>
+            {/* Quick Demo Login Pill */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPinInput("1234");
+                  handlePinSubmit(undefined, "1234");
+                }}
+                className="rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-1.5 text-xs font-bold text-amber-300 border border-white/10 transition cursor-pointer"
+              >
+                ⚡ Quick Fill Demo PIN (1234)
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -347,91 +360,92 @@ export const StaffView: React.FC<StaffViewProps> = ({
   }
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-8 pb-28">
       {/* Top Metrics Row */}
       {metrics && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-            <span className="text-xs text-slate-400 font-medium">Today&apos;s Online Revenue</span>
-            <p className="text-xl sm:text-2xl font-black text-orange-400 mt-1">₹{metrics.totalRevenue}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="surface-panel rounded-3xl p-5 border border-white/10 shadow-lg">
+            <span className="text-xs text-slate-400 font-semibold block">Today&apos;s Online Sales</span>
+            <p className="text-2xl sm:text-3xl font-black text-orange-400 mt-1">₹{metrics.totalRevenue}</p>
+            <span className="text-[10px] text-slate-500 font-medium">Pre-orders processed</span>
           </div>
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-            <span className="text-xs text-slate-400 font-medium">Orders Served</span>
-            <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">{metrics.servedCount}</p>
+
+          <div className="surface-panel rounded-3xl p-5 border border-white/10 shadow-lg">
+            <span className="text-xs text-slate-400 font-semibold block">Trays Handed Over</span>
+            <p className="text-2xl sm:text-3xl font-black text-emerald-400 mt-1">{metrics.servedCount}</p>
+            <span className="text-[10px] text-slate-500 font-medium">Completed pickups</span>
           </div>
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-            <span className="text-xs text-slate-400 font-medium">Awaiting Prep (PAID)</span>
-            <p className="text-xl sm:text-2xl font-black text-amber-400 mt-1">{metrics.paidCount}</p>
+
+          <div className="surface-panel rounded-3xl p-5 border border-white/10 shadow-lg">
+            <span className="text-xs text-slate-400 font-semibold block">In Kitchen / Prep</span>
+            <p className="text-2xl sm:text-3xl font-black text-amber-400 mt-1">{metrics.paidCount}</p>
+            <span className="text-[10px] text-slate-500 font-medium">Pending verification</span>
           </div>
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-            <span className="text-xs text-slate-400 font-medium">Ready for Handover</span>
-            <p className="text-xl sm:text-2xl font-black text-cyan-400 mt-1">{metrics.readyCount}</p>
+
+          <div className="surface-panel rounded-3xl p-5 border border-white/10 shadow-lg">
+            <span className="text-xs text-slate-400 font-semibold block">Ready for Counter</span>
+            <p className="text-2xl sm:text-3xl font-black text-cyan-400 mt-1">{metrics.readyCount}</p>
+            <span className="text-[10px] text-slate-500 font-medium">Awaiting student collection</span>
           </div>
         </div>
       )}
 
       {/* Main Staff Scanner Section */}
-      <div className="overflow-hidden rounded-3xl bg-slate-900 border border-slate-800 shadow-xl">
-        <div className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                <QrCode className="h-5 w-5" />
+      <div className="overflow-hidden rounded-[2.5rem] bg-slate-900 border border-white/15 shadow-2xl">
+        <div className="p-6 sm:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                <QrCode className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Fast-Pickup QR Scanner</h3>
-                <p className="text-xs text-slate-400">Scan customer QR pass or verify token atomically</p>
+                <h3 className="text-xl font-black text-white">Instant Counter Scanner</h3>
+                <p className="text-xs text-slate-400">Redeem cryptographic QR tokens or paste credentials</p>
               </div>
             </div>
 
             <button
               onClick={() => setIsManagingInventory(!isManagingInventory)}
-              className="flex items-center gap-1.5 rounded-xl bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700"
+              className="flex items-center gap-2 rounded-2xl bg-slate-800 border border-white/10 px-4 py-2.5 text-xs font-bold text-slate-200 hover:bg-slate-700 transition cursor-pointer"
             >
-              <Sliders className="h-3.5 w-3.5" />
-              <span>{isManagingInventory ? "Hide Stock Controls" : "Adjust Online Stock"}</span>
+              <Sliders className="h-4 w-4 text-orange-400" />
+              <span>{isManagingInventory ? "Hide Stock Controls" : "Adjust Daily Stock"}</span>
             </button>
           </div>
 
           {/* Scanner Input & Camera Controls */}
-          <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 space-y-3">
-              <div className="flex gap-2">
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="md:col-span-2 space-y-3.5">
+              <div className="flex gap-2.5">
                 <input
                   type="text"
                   value={rawTokenInput}
                   onChange={(e) => setRawTokenInput(e.target.value)}
                   placeholder="Paste or enter customer QR raw token (qp_sec_...)"
-                  className="flex-1 rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-mono text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none"
+                  className="flex-1 rounded-2xl bg-slate-950 border border-white/10 px-4 py-3 text-xs font-mono text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none"
                 />
                 <button
                   onClick={() => handleVerifyToken()}
                   disabled={isVerifying || !rawTokenInput.trim()}
-                  className="flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-orange-600/30 hover:bg-orange-500 active:scale-95 disabled:opacity-40 transition"
+                  className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-5 py-3 text-xs font-black text-white shadow-xl shadow-orange-500/30 hover:opacity-95 active:scale-95 disabled:opacity-40 transition cursor-pointer"
                 >
                   {isVerifying ? "Verifying..." : "Redeem"}
                 </button>
               </div>
 
-              {/* Quick Test Bar for Mentor / Demo */}
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                <span className="font-semibold text-slate-300">Quick Test With Active Orders:</span>
+              {/* Quick Active Order Shortcuts */}
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 pt-1">
+                <span className="font-semibold text-slate-300">Pending Orders Ready to Scan:</span>
                 {orders
                   .filter((o) => o.status === "PAID" || o.status === "READY")
-                  .slice(0, 3)
+                  .slice(0, 4)
                   .map((o) => (
-                    <button
+                    <span
                       key={o.id}
-                      onClick={() => {
-                        // For demo orders, fetch token or simulated token
-                        alert(
-                          `To test this order #${o.order_code}, present the QR pass from the Student Tab, or click 'Test Staff Scan' inside its receipt modal!`
-                        );
-                      }}
-                      className="rounded-lg bg-slate-800 hover:bg-slate-700 px-2 py-1 font-mono text-orange-400 border border-slate-700"
+                      className="rounded-xl bg-slate-950/80 px-2.5 py-1 font-mono text-[11px] text-orange-400 border border-white/10"
                     >
                       {o.order_code} ({o.customer_name})
-                    </button>
+                    </span>
                   ))}
               </div>
             </div>
@@ -441,19 +455,20 @@ export const StaffView: React.FC<StaffViewProps> = ({
               {!isCameraActive ? (
                 <button
                   onClick={startCamera}
-                  className="w-full h-full flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-4 text-xs text-slate-300 hover:bg-slate-950/80 hover:border-orange-500 transition"
+                  className="w-full h-full min-h-[110px] flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/15 bg-slate-950/60 p-5 text-xs text-slate-300 hover:bg-slate-950 hover:border-orange-500/50 transition cursor-pointer"
                 >
                   <Camera className="h-6 w-6 text-orange-400" />
                   <span className="font-bold">Open Camera Scanner</span>
-                  <span className="text-[10px] text-slate-500">Scan student phone screen</span>
+                  <span className="text-[10px] text-slate-500">Scan student phone QR</span>
                 </button>
               ) : (
-                <div className="relative rounded-xl overflow-hidden bg-black border border-orange-500">
-                  <video ref={videoRef} className="h-40 w-full object-cover" />
+                <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-orange-500 shadow-xl">
+                  <video ref={videoRef} className="h-44 w-full object-cover" />
                   <canvas ref={canvasRef} className="hidden" />
+                  <div className="scanner-laser" />
                   <button
                     onClick={stopCamera}
-                    className="absolute top-2 right-2 rounded-lg bg-red-600/80 px-2 py-1 text-[10px] font-bold text-white"
+                    className="absolute top-2 right-2 rounded-xl bg-red-600/90 px-2.5 py-1 text-[10px] font-bold text-white shadow cursor-pointer"
                   >
                     Close Camera
                   </button>
@@ -465,44 +480,48 @@ export const StaffView: React.FC<StaffViewProps> = ({
           {/* Scanner Feedback Box */}
           {scanResult && (
             <div
-              className={`mt-5 rounded-2xl p-4 border transition-all ${
+              className={`mt-6 rounded-3xl p-5 border transition-all ${
                 scanResult.status === "SUCCESS"
-                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
-                  : "bg-red-500/15 border-red-500/40 text-red-200"
+                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-100 shadow-xl shadow-emerald-500/10"
+                  : "bg-red-500/15 border-red-500/40 text-red-100 shadow-xl shadow-red-500/10"
               }`}
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-4">
                 {scanResult.status === "SUCCESS" ? (
-                  <CheckCircle2 className="h-6 w-6 text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+                    <CheckCircle2 className="h-7 w-7" />
+                  </div>
                 ) : (
-                  <AlertCircle className="h-6 w-6 text-red-400 shrink-0 mt-0.5" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/20 text-red-400 border border-red-500/30 shrink-0">
+                    <AlertCircle className="h-7 w-7" />
+                  </div>
                 )}
 
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-black text-sm">
+                    <h4 className="font-black text-base text-white">
                       {scanResult.status === "SUCCESS"
                         ? "TOKEN VERIFIED — HAND OVER FOOD!"
                         : `SCAN REJECTED: ${scanResult.code}`}
                     </h4>
                     {scanResult.order && (
-                      <span className="font-mono font-black text-white bg-emerald-600 px-2 py-0.5 rounded text-xs">
+                      <span className="font-mono font-black text-white bg-emerald-600 px-3 py-1 rounded-xl text-xs shadow">
                         #{scanResult.order.orderCode}
                       </span>
                     )}
                   </div>
 
                   {scanResult.status === "SUCCESS" ? (
-                    <div className="mt-2 space-y-2">
-                      <p className="text-xs font-semibold text-white">
-                        Customer: {scanResult.order.customerName} (Total Paid: ₹
-                        {scanResult.order.totalAmount.toFixed(2)})
+                    <div className="mt-3 space-y-3">
+                      <p className="text-xs font-semibold text-slate-200">
+                        Customer: <strong className="text-white">{scanResult.order.customerName}</strong> • Total Paid:{" "}
+                        <strong className="text-emerald-400">₹{scanResult.order.totalAmount.toFixed(2)}</strong>
                       </p>
-                      <div className="rounded-xl bg-slate-950/60 p-2.5 border border-emerald-500/20 text-xs">
-                        <p className="font-bold text-emerald-400 mb-1">Assemble these items:</p>
-                        <ul className="divide-y divide-slate-800">
+                      <div className="rounded-2xl bg-slate-950/80 p-3.5 border border-emerald-500/20 text-xs">
+                        <p className="font-bold text-emerald-400 mb-2">Assemble These Items for Tray:</p>
+                        <ul className="divide-y divide-white/10">
                           {scanResult.order.items.map((i: any, idx: number) => (
-                            <li key={idx} className="py-1 flex justify-between">
+                            <li key={idx} className="py-1.5 flex justify-between">
                               <span className="font-bold text-white">
                                 {i.quantity}x {i.name}
                               </span>
@@ -512,15 +531,15 @@ export const StaffView: React.FC<StaffViewProps> = ({
                         </ul>
                       </div>
                       <p className="text-[11px] text-emerald-300">
-                        Atomically marked token as USED at {new Date(scanResult.order.servedAt).toLocaleTimeString()}
+                        ✓ Atomically redeemed at {new Date(scanResult.order.servedAt).toLocaleTimeString()}
                       </p>
                     </div>
                   ) : (
-                    <div className="mt-1 text-xs">
-                      <p>{scanResult.error}</p>
+                    <div className="mt-2 text-xs">
+                      <p className="text-red-300 font-semibold">{scanResult.error}</p>
                       {scanResult.previouslyServedAt && (
-                        <p className="mt-1 text-[11px] text-red-300">
-                          Previously served at:{" "}
+                        <p className="mt-1 text-[11px] text-red-200">
+                          Previously redeemed at:{" "}
                           {new Date(scanResult.previouslyServedAt).toLocaleTimeString()}
                         </p>
                       )}
@@ -533,15 +552,14 @@ export const StaffView: React.FC<StaffViewProps> = ({
         </div>
       </div>
 
-      {/* Online Inventory Modification Panel (Phase 2 & Section 2) */}
+      {/* Online Inventory Modification Panel */}
       {isManagingInventory && (
-        <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="rounded-[2.5rem] bg-slate-900 border border-white/15 p-6 sm:p-8 shadow-2xl space-y-5">
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <div>
-              <h3 className="text-base font-bold text-white">Same-Day Online Allocation Manager</h3>
+              <h3 className="text-lg font-black text-white">Daily Online Quota & Allocation</h3>
               <p className="text-xs text-slate-400">
-                Staff can adjust online stock anytime. Walk-in protected allocation = (Total Stock - Online Stock).
-                Already sold units are never revoked.
+                Adjust online food allocation in real time. Walk-in stock is automatically protected.
               </p>
             </div>
           </div>
@@ -552,54 +570,51 @@ export const StaffView: React.FC<StaffViewProps> = ({
               return (
                 <div
                   key={item.id}
-                  className="flex flex-col justify-between rounded-2xl bg-slate-950/70 border border-slate-800 p-4"
+                  className="flex flex-col justify-between rounded-3xl bg-slate-950/80 border border-white/10 p-5 space-y-3"
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <h4 className="font-bold text-white text-sm">{item.name}</h4>
-                      <p className="text-xs text-slate-400 font-mono">
-                        Batch Total: {inv.totalStock} | Already Sold: {inv.soldOnline}
+                      <h4 className="font-extrabold text-white text-sm">{item.name}</h4>
+                      <p className="text-xs text-slate-400 font-mono mt-0.5">
+                        Batch Total: {inv.totalStock} • Sold Online: {inv.soldOnline}
                       </p>
                     </div>
-                    <span className="font-black text-orange-400 text-xs">₹{item.price}</span>
+                    <span className="font-black text-orange-400 text-sm">₹{item.price}</span>
                   </div>
 
-                  <div className="mt-3 space-y-2">
+                  <div className="space-y-2.5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-400">Online Allocation:</span>
                       <span className="font-bold text-white">{inv.onlineStock} units</span>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={inv.soldOnline}
-                        max={inv.totalStock}
-                        value={inv.onlineStock}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          handleAdjustStock(item.id, val, inv.isOnlineClosed);
-                        }}
-                        disabled={updatingItemId === item.id}
-                        className="flex-1 accent-orange-500 h-2 bg-slate-800 rounded-lg cursor-pointer"
-                      />
-                    </div>
+                    <input
+                      type="range"
+                      min={inv.soldOnline}
+                      max={inv.totalStock}
+                      value={inv.onlineStock}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        handleAdjustStock(item.id, val, inv.isOnlineClosed);
+                      }}
+                      disabled={updatingItemId === item.id}
+                      className="w-full accent-orange-500 h-2 bg-slate-800 rounded-lg cursor-pointer"
+                    />
 
-                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-800/80">
+                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-white/10">
                       <span className="text-slate-400">
-                        Protected Walk-in:{" "}
-                        <strong className="text-slate-200">{inv.walkinProtectedStock}</strong>
+                        Protected Walk-in: <strong className="text-slate-200">{inv.walkinProtectedStock}</strong>
                       </span>
 
                       <button
                         onClick={() => handleAdjustStock(item.id, inv.onlineStock, !inv.isOnlineClosed)}
-                        className={`rounded-lg px-2.5 py-1 text-[10px] font-bold border transition ${
+                        className={`rounded-xl px-3 py-1 text-[11px] font-bold border transition cursor-pointer ${
                           inv.isOnlineClosed
                             ? "bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/30"
                             : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30"
                         }`}
                       >
-                        {inv.isOnlineClosed ? "Online: Closed (Click to Open)" : "Online: Active (Click to Close)"}
+                        {inv.isOnlineClosed ? "Online: Closed (Reopen)" : "Online: Open (Pause)"}
                       </button>
                     </div>
                   </div>
@@ -610,23 +625,23 @@ export const StaffView: React.FC<StaffViewProps> = ({
         </div>
       )}
 
-      {/* Orders Queue Management (Phase 4 & 9) */}
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden">
-        <div className="p-6 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Orders Queue Management */}
+      <div className="rounded-[2.5rem] bg-slate-900 border border-white/15 shadow-2xl overflow-hidden">
+        <div className="p-6 sm:p-8 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-bold text-white">Today&apos;s Order Queue</h3>
-            <p className="text-xs text-slate-400">Manage kitchen preparation and counter handovers</p>
+            <h3 className="text-xl font-black text-white">Live Kitchen Order Queue</h3>
+            <p className="text-xs text-slate-400">Track paid pre-orders and handover status</p>
           </div>
 
           {/* Status Filters */}
-          <div className="flex items-center gap-1.5 rounded-xl bg-slate-800 p-1 text-xs">
+          <div className="flex items-center gap-1.5 rounded-2xl bg-slate-950 p-1 border border-white/10 text-xs font-semibold">
             {["ALL", "PAID", "READY", "SERVED"].map((f) => (
               <button
                 key={f}
                 onClick={() => setOrderFilter(f)}
-                className={`rounded-lg px-3 py-1 font-semibold transition ${
+                className={`rounded-xl px-3.5 py-1.5 font-bold transition cursor-pointer ${
                   orderFilter === f
-                    ? "bg-orange-500 text-white font-bold"
+                    ? "bg-orange-500 text-white shadow-md"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
@@ -637,16 +652,19 @@ export const StaffView: React.FC<StaffViewProps> = ({
         </div>
 
         {/* Orders Table */}
-        <div className="divide-y divide-slate-800 max-h-[500px] overflow-y-auto">
+        <div className="divide-y divide-white/10 max-h-[500px] overflow-y-auto">
           {filteredOrders.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500">
-              No orders matching this filter today.
+            <div className="p-12 text-center text-xs text-slate-500">
+              No orders matching this filter currently.
             </div>
           ) : (
             filteredOrders.map((ord) => (
-              <div key={ord.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-800/30 transition">
+              <div
+                key={ord.id}
+                className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/5 transition"
+              >
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <span className="font-mono text-sm font-black text-orange-400">{ord.order_code}</span>
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
@@ -666,7 +684,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                     </span>
                   </div>
 
-                  <p className="text-xs font-semibold text-white">
+                  <p className="text-xs font-bold text-white">
                     {ord.customer_name} • Total: ₹{Number(ord.total_amount).toFixed(2)}
                   </p>
 
@@ -680,7 +698,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                   {ord.status === "PAID" && (
                     <button
                       onClick={() => handleUpdateOrderStatus(ord.id, "READY")}
-                      className="rounded-xl bg-cyan-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-cyan-500"
+                      className="rounded-xl bg-cyan-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-cyan-500 transition shadow cursor-pointer"
                     >
                       Mark Ready for Pickup
                     </button>
@@ -689,15 +707,15 @@ export const StaffView: React.FC<StaffViewProps> = ({
                   {ord.status === "READY" && (
                     <button
                       onClick={() => handleUpdateOrderStatus(ord.id, "SERVED")}
-                      className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500"
+                      className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-500 transition shadow cursor-pointer"
                     >
                       Mark Served (Manual)
                     </button>
                   )}
 
                   {ord.status === "SERVED" && (
-                    <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Served
+                    <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Served
                     </span>
                   )}
                 </div>

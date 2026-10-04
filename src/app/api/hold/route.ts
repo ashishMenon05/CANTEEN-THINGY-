@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const client = await pool.connect();
   try {
     const body = await readJson<{ items?: HoldItemRequest[]; holdSessionId?: string }>(req);
-    const items: HoldItemRequest[] = body.items;
+    const items: HoldItemRequest[] = body.items || [];
     const existingSessionId: string | undefined = body.holdSessionId;
 
     if (!Array.isArray(items) || items.length === 0 || items.length > 25) {

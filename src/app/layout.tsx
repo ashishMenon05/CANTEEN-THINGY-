@@ -3,9 +3,9 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Q-Pass — Offline-First College Canteen Pre-Ordering & Fast Pickup",
+  title: "Q-Pass — The Daily Plate",
   description:
-    "Zero-login college canteen pre-ordering, atomic 10-minute inventory holds, cryptographically secure QR receipts, and offline pickup credentials.",
+    "Thoughtful plates and campus favourites, freshly prepared and ready for pickup with Q-Pass.",
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.ico",
@@ -17,13 +17,13 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0f172a",
+  themeColor: "#080808",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="h-full bg-slate-950 text-slate-100">
-      <body className="min-h-full font-sans antialiased bg-slate-950 text-slate-100 selection:bg-orange-500 selection:text-white">
+    <html lang="en" className="h-full">
+      <body className="min-h-full font-sans antialiased selection:bg-amber-500 selection:text-black">
         {children}
       </body>
     </html>

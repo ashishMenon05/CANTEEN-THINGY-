@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { Download, CheckCircle2, QrCode, ShieldAlert, Sparkles, ArrowRight, X, Clock, AlertCircle } from "lucide-react";
+import { Download, CheckCircle2, QrCode, ShieldCheck, Sparkles, ArrowRight, X, Clock } from "lucide-react";
 
 export interface SavedReceipt {
   orderId: number;
@@ -31,17 +31,15 @@ export const QrReceiptModal: React.FC<QrReceiptModalProps> = ({ receipt, onClose
   useEffect(() => {
     if (!receipt || !canvasRef.current) return;
 
-    // Generate QR code onto canvas
-    // The payload is ONLY the unguessable raw token!
-    // Never include trusted state like "paid=true"
+    // Generate high-resolution QR code onto canvas
     QRCode.toCanvas(
       canvasRef.current,
       receipt.rawToken,
       {
-        width: 240,
+        width: 250,
         margin: 2,
         color: {
-          dark: "#0f172a", // Deep slate
+          dark: "#0b0e14", // Deep rich obsidian
           light: "#ffffff",
         },
         errorCorrectionLevel: "H",
@@ -78,107 +76,110 @@ export const QrReceiptModal: React.FC<QrReceiptModalProps> = ({ receipt, onClose
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-6 text-slate-100 my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md overflow-y-auto">
+      <div className="relative w-full max-w-md rounded-[2.5rem] bg-slate-900 border border-white/15 shadow-2xl p-6 sm:p-8 text-slate-100 my-8">
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+          className="absolute right-5 top-5 rounded-full p-2 text-slate-400 hover:bg-white/10 hover:text-white transition cursor-pointer"
         >
           <X className="h-5 w-5" />
         </button>
 
-        {/* Header */}
-        <div className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-            <CheckCircle2 className="h-7 w-7" />
+        {/* Ticket Header */}
+        <div className="text-center pt-2">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-lg shadow-emerald-500/10">
+            <CheckCircle2 className="h-8 w-8" />
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-0.5 text-xs font-bold text-emerald-400 border border-emerald-500/30">
-            <Sparkles className="h-3 w-3" /> PAYMENT CONFIRMED & RESERVED
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1 text-xs font-black text-emerald-400 border border-emerald-500/30 shadow-sm">
+            <Sparkles className="h-3 w-3" /> PAYMENT VERIFIED & PREPARED
           </span>
-          <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Your Pickup Pass</h2>
-          <p className="text-xs text-slate-400">
-            Order Code: <span className="font-mono font-bold text-orange-400">{receipt.orderCode}</span>
+          <h2 className="mt-3 text-2xl font-black tracking-tight text-white">Your Pickup Pass</h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Present this QR code at the counter scanner for rapid tray collection
           </p>
         </div>
 
-        {/* Offline Badge */}
-        <div className="mt-3 flex items-center justify-between rounded-xl bg-orange-500/10 border border-orange-500/20 p-2.5 text-xs text-orange-300">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-orange-500 animate-ping" />
-            <span>Zero-Login Pickup Ready</span>
+        {/* QR Code Canvas Card (Ticket Style with Cutout Notches) */}
+        <div className="mt-6 flex flex-col items-center justify-center rounded-3xl bg-white p-6 shadow-2xl border-4 border-orange-500/20">
+          <canvas ref={canvasRef} className="rounded-xl" />
+          
+          <div className="mt-3 text-center">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">ORDER PASS CODE</span>
+            <span className="font-mono text-2xl font-black text-slate-900 tracking-wider">
+              {receipt.orderCode}
+            </span>
           </div>
-          <span className="font-semibold">Works Offline</span>
+
+          <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>HMAC-SHA256 Cryptographic Token</span>
+          </div>
         </div>
 
-        {/* QR Code Frame */}
-        <div className="mt-4 flex flex-col items-center justify-center rounded-2xl bg-white p-4 shadow-inner">
-          <canvas ref={canvasRef} className="rounded-lg shadow-sm" />
-          <div className="mt-2 text-center">
-            <p className="font-mono text-xs font-bold tracking-widest text-slate-900 uppercase">
-              {receipt.orderCode}
-            </p>
-            <p className="text-[10px] text-slate-500">Show this QR to the canteen staff scanner</p>
+        {/* Ticket Details Box */}
+        <div className="mt-6 rounded-3xl bg-slate-950/80 p-5 border border-white/10 space-y-3">
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-slate-400">Customer:</span>
+            <span className="font-bold text-white">{receipt.customerName || "Walk-in Student"}</span>
+          </div>
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-slate-400">Paid Amount:</span>
+            <span className="font-black text-orange-400 text-sm">₹{receipt.totalAmount.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-slate-400">Payment Ref:</span>
+            <span className="font-mono text-[11px] text-slate-300">{receipt.paymentRef}</span>
+          </div>
+
+          {/* Items breakdown */}
+          <div className="border-t border-white/10 pt-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+              Items Ordered
+            </span>
+            <div className="space-y-1">
+              {receipt.items.map((i, idx) => (
+                <div key={idx} className="flex justify-between text-xs text-slate-200">
+                  <span>
+                    {i.quantity}x {i.name}
+                  </span>
+                  <span className="font-medium text-slate-400">₹{i.subtotal.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-6 space-y-2.5">
           <button
             onClick={handleDownloadImage}
-            className="flex items-center justify-center gap-2 rounded-xl bg-slate-800 border border-slate-700 py-2.5 px-3 text-xs font-bold text-white hover:bg-slate-700 active:scale-95 transition"
+            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-slate-800 py-3 text-xs font-bold text-slate-200 hover:bg-slate-700 hover:text-white transition shadow cursor-pointer border border-white/10"
           >
-            <Download className="h-4 w-4 text-orange-400" />
-            {downloadSuccess ? "Saved to Device!" : "Save to Phone"}
+            <Download className="h-4 w-4" />
+            <span>{downloadSuccess ? "Downloaded Successfully!" : "Save Pass as Image"}</span>
           </button>
 
+          {/* Test on Staff Scanner Bridge */}
           {onTestScan && (
             <button
               onClick={() => {
-                onTestScan(receipt.rawToken);
                 onClose();
+                onTestScan(receipt.rawToken);
               }}
-              className="flex items-center justify-center gap-2 rounded-xl bg-orange-600 py-2.5 px-3 text-xs font-bold text-white hover:bg-orange-500 active:scale-95 shadow-lg shadow-orange-600/30 transition"
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 py-3.5 text-xs font-black text-white shadow-xl shadow-orange-500/30 hover:opacity-95 active:scale-98 transition cursor-pointer"
             >
-              <QrCode className="h-4 w-4" />
-              Test Staff Scan
+              <span>Test Counter Verification with this QR</span>
+              <ArrowRight className="h-4 w-4" />
             </button>
           )}
         </div>
 
-        {/* Order Details Breakdown */}
-        <div className="mt-4 rounded-xl bg-slate-800/60 p-3.5 border border-slate-700/60 text-xs">
-          <div className="flex justify-between border-b border-slate-700/60 pb-2 font-semibold text-slate-300">
-            <span>Items Ordered</span>
-            <span>Amount</span>
-          </div>
-          <div className="divide-y divide-slate-800/60 py-1">
-            {receipt.items.map((item, idx) => (
-              <div key={idx} className="flex justify-between py-1.5 text-slate-300">
-                <span>
-                  {item.quantity}x {item.name}
-                </span>
-                <span className="font-medium text-slate-200">₹{item.subtotal.toFixed(2)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between border-t border-slate-700/60 pt-2 font-bold text-white text-sm">
-            <span>Total Paid (UPI)</span>
-            <span className="text-orange-400">₹{receipt.totalAmount.toFixed(2)}</span>
-          </div>
-        </div>
-
-        {/* Security Mentor Note */}
-        <div className="mt-4 rounded-xl bg-slate-950/80 p-3 border border-slate-800 text-[11px] text-slate-400 space-y-1">
-          <div className="flex items-center gap-1.5 font-semibold text-amber-400">
-            <ShieldAlert className="h-3.5 w-3.5" />
-            <span>Cryptographic Security Invariant</span>
-          </div>
-          <p>
-            The QR code embeds an unguessable 64-char raw token. The database only stores its SHA-256 hash. Even if a
-            user alters the image, the server re-hashes and verifies payment integrity atomically.
+        {isSavedLocally && (
+          <p className="mt-4 text-center text-[10px] text-emerald-400/90 font-medium">
+            ✓ Cached to this device • Viewable offline from &quot;My Saved Passes&quot;
           </p>
-        </div>
+        )}
       </div>
     </div>
   );
